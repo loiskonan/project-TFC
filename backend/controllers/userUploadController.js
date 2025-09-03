@@ -1,0 +1,578 @@
+const File = require('../models/File');
+const Banque = require('../models/Banque');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+
+// Configuration de multer pour l'upload de fichiers
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '..', '..', 'uploads');
+    // Créer le dossier s'il n'existe pas
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    // Générer un nom unique pour éviter les conflits
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+  }
+});
+
+// Extensions de fichiers dangereux à bloquer
+const DANGEROUS_EXTENSIONS = [
+  '.exe', '.msi', '.bat', '.cmd', '.com', '.scr', '.pif',
+  '.vbs', '.js', '.jar', '.php', '.asp', '.aspx', '.jsp',
+  '.py', '.pl', '.rb', '.sh', '.ps1', '.cgi', '.reg',
+  '.inf', '.sys', '.dll', '.ocx', '.cab', '.mdb', '.accdb',
+  '.db', '.sql', '.htaccess', '.htpasswd', '.conf', '.ini',
+  '.cfg', '.log', '.tmp', '.temp', '.cache'
+];
+
+// Extensions de fichiers autorisés
+const ALLOWED_EXTENSIONS = [
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+  '.txt', '.rtf', '.jpg', '.jpeg', '.png', '.gif', '.bmp',
+  '.tiff', '.svg', '.zip', '.rar', '.7z', '.tar', '.gz',
+  '.mp3', '.mp4', '.avi', '.mov', '.wav'
+];
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024 // 50MB max
+  },
+  fileFilter: (req, file, cb) => {
+    const fileExtension = path.extname(file.originalname).toLowerCase();
+    
+    // Bloquer les extensions dangereuses
+    if (DANGEROUS_EXTENSIONS.includes(fileExtension)) {
+      return cb(new Error(`Type de fichier dangereux non autorisé: ${fileExtension}`), false);
+    }
+    
+    // Accepter les extensions autorisées
+    if (ALLOWED_EXTENSIONS.includes(fileExtension)) {
+      return cb(null, true);
+    }
+    
+    // Bloquer les autres types par défaut
+    return cb(new Error(`Type de fichier non autorisé: ${fileExtension}`), false);
+  }
+});
+
+class UserUploadController {
+  // Upload d'un fichier par un utilisateur (rôle 'user' uniquement)
+  static async uploadFile(req, res) {
+    try {
+      // Vérifier que l'utilisateur a le rôle 'user'
+      if (req.user.role !== 'user') {
+        return res.status(403).json({
+          success: false,
+          message: 'Accès refusé. Seuls les utilisateurs peuvent déposer des fichiers.'
+        });
+      }
+
+      // Vérifier que l'utilisateur a une banque assignée
+      if (!req.user.banque) {
+        return res.status(400).json({
+          success: false,
+          message: 'Vous devez avoir une banque assignée pour déposer des fichiers.'
+        });
+      }
+
+      // Utiliser multer pour gérer l'upload
+      upload.single('file')(req, res, async (err) => {
+        if (err) {
+          return res.status(400).json({
+            success: false,
+            message: err.message || 'Erreur lors de l\'upload'
+          });
+        }
+
+        if (!req.file) {
+          return res.status(400).json({
+            success: false,
+            message: 'Aucun fichier fourni'
+          });
+        }
+
+        const { description } = req.body;
+        
+        if (!description || description.trim().length === 0) {
+          // Supprimer le fichier uploadé si pas de description
+          fs.unlinkSync(req.file.path);
+          return res.status(400).json({
+            success: false,
+            message: 'La description est obligatoire'
+          });
+        }
+
+        // Vérifier que le nom de fichier n'existe pas déjà pour cette banque
+        try {
+          const fileNameExists = await File.fileNameExists(req.file.originalname, req.user.banque);
+          if (fileNameExists) {
+            // Supprimer le fichier uploadé
+            fs.unlinkSync(req.file.path);
+            return res.status(400).json({
+              success: false,
+              message: `Un fichier avec le nom "${req.file.originalname}" existe déjà pour votre banque. Veuillez renommer le fichier ou utiliser un autre fichier.`
+            });
+          }
+        } catch (error) {
+          console.error('Erreur lors de la vérification du nom de fichier:', error);
+          // Supprimer le fichier uploadé
+          fs.unlinkSync(req.file.path);
+          return res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la vérification du nom de fichier'
+          });
+        }
+
+        // Préparer les données du fichier avec informations complètes du déposant
+        const fileData = {
+          name: req.file.filename,
+          originalName: req.file.originalname,
+          description: description.trim(),
+          deposantNom: req.user.name,
+          deposantEmail: req.user.email,
+          deposantBanque: req.user.banque,
+          filePath: req.file.path.replace(path.join(__dirname, '..', '..'), ''),
+          fileSize: req.file.size,
+          fileType: req.file.mimetype,
+          uploadedBy: req.user.id,
+          isPublic: false
+        };
+
+        // Sauvegarder en base de données
+        const fileId = await File.create(fileData);
+        const newFile = await File.findById(fileId);
+
+        res.status(201).json({
+          success: true,
+          message: 'Fichier déposé avec succès',
+          file: {
+            id: newFile.id,
+            name: newFile.name,
+            originalName: newFile.original_name,
+            description: newFile.description,
+            deposantNom: newFile.deposant_nom,
+            deposantEmail: newFile.deposant_email,
+            deposantBanque: newFile.deposant_banque,
+            fileSize: newFile.file_size,
+            fileType: newFile.file_type,
+            uploadedAt: newFile.uploaded_at
+          }
+        });
+      });
+    } catch (error) {
+      console.error('Erreur lors de l\'upload utilisateur:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erreur interne du serveur'
+      });
+    }
+  }
+
+  // Upload de plusieurs fichiers avec transaction
+  static async uploadMultipleFiles(req, res) {
+    try {
+      // Vérifier que l'utilisateur a le rôle 'user'
+      if (req.user.role !== 'user') {
+        return res.status(403).json({
+          success: false,
+          message: 'Accès refusé. Seuls les utilisateurs peuvent déposer des fichiers.'
+        });
+      }
+
+      // Vérifier que l'utilisateur a une banque assignée
+      if (!req.user.banque) {
+        return res.status(400).json({
+          success: false,
+          message: 'Vous devez avoir une banque assignée pour déposer des fichiers.'
+        });
+      }
+
+      // Utiliser multer pour gérer l'upload multiple
+      upload.array('files', 10)(req, res, async (err) => {
+        if (err) {
+          return res.status(400).json({
+            success: false,
+            message: err.message || 'Erreur lors de l\'upload'
+          });
+        }
+
+        if (!req.files || req.files.length === 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'Aucun fichier fourni'
+          });
+        }
+
+        // Récupérer la description après le traitement multer
+        const { description } = req.body;
+        
+        if (!description || description.trim().length === 0) {
+          // Supprimer tous les fichiers uploadés
+          req.files.forEach(file => {
+            if (fs.existsSync(file.path)) {
+              fs.unlinkSync(file.path);
+            }
+          });
+          
+          return res.status(400).json({
+            success: false,
+            message: 'La description est obligatoire'
+          });
+        }
+
+        // Vérifier que les noms de fichiers n'existent pas déjà pour cette banque
+        try {
+          const duplicateFiles = [];
+          for (const file of req.files) {
+            const fileNameExists = await File.fileNameExists(file.originalname, req.user.banque);
+            if (fileNameExists) {
+              duplicateFiles.push(file.originalname);
+            }
+          }
+          
+          if (duplicateFiles.length > 0) {
+            // Supprimer tous les fichiers uploadés
+            req.files.forEach(file => {
+              if (fs.existsSync(file.path)) {
+                fs.unlinkSync(file.path);
+              }
+            });
+            
+            return res.status(400).json({
+              success: false,
+              message: `Le(s) fichier(s) suivant(s) existe(nt) déjà  : ${duplicateFiles.join(', ')}. Veuillez renommer ce(s) fichier(s) ou utiliser d'autre(s) fichier(s).`
+            });
+          }
+        } catch (error) {
+          console.error('Erreur lors de la vérification des noms de fichiers:', error);
+          // Supprimer tous les fichiers uploadés
+          req.files.forEach(file => {
+            if (fs.existsSync(file.path)) {
+              fs.unlinkSync(file.path);
+            }
+          });
+          
+          return res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la vérification des noms de fichiers'
+          });
+        }
+
+        const uploadedFiles = [];
+        const errors = [];
+        const uploadedFilePaths = [];
+
+        // Première passe : valider tous les fichiers
+        for (const file of req.files) {
+          try {
+            // Accepter tous les types de fichiers
+            // Note: La validation du type de fichier est désactivée pour permettre tous les formats
+            console.log(`Fichier accepté: ${file.originalname} (${file.mimetype})`);
+
+            uploadedFilePaths.push(file.path);
+          } catch (error) {
+            errors.push({
+              fileName: file.originalname,
+              error: 'Erreur lors de la validation du fichier'
+            });
+            // Supprimer le fichier uploadé
+            if (fs.existsSync(file.path)) {
+              fs.unlinkSync(file.path);
+            }
+          }
+        }
+
+        // Si il y a des erreurs, tout annuler
+        if (errors.length > 0) {
+          // Supprimer tous les fichiers uploadés
+          uploadedFilePaths.forEach(filePath => {
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
+            }
+          });
+
+          return res.status(400).json({
+            success: false,
+            message: 'Échec de l\'upload - certains fichiers ne sont pas autorisés',
+            errors: errors,
+            failedFiles: errors.map(e => e.fileName)
+          });
+        }
+
+        // Deuxième passe : sauvegarder en base de données avec transaction
+        const db = require('../config/db');
+        
+        // Utiliser une connexion du pool pour la transaction
+        db.getConnection((err, connection) => {
+          if (err) {
+            // Supprimer tous les fichiers uploadés
+            uploadedFilePaths.forEach(filePath => {
+              if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+              }
+            });
+
+            return res.status(500).json({
+              success: false,
+              message: 'Erreur lors de l\'obtention d\'une connexion'
+            });
+          }
+
+          // Commencer la transaction
+          connection.beginTransaction(async (err) => {
+            if (err) {
+              connection.release();
+              // Supprimer tous les fichiers uploadés
+              uploadedFilePaths.forEach(filePath => {
+                if (fs.existsSync(filePath)) {
+                  fs.unlinkSync(filePath);
+                }
+              });
+
+              return res.status(500).json({
+                success: false,
+                message: 'Erreur lors de l\'initialisation de la transaction'
+              });
+            }
+
+            try {
+              for (const file of req.files) {
+                const fileData = {
+                  name: file.filename,
+                  originalName: file.originalname,
+                  description: description.trim(),
+                  deposantNom: req.user.name,
+                  deposantEmail: req.user.email,
+                  deposantBanque: req.user.banque,
+                  filePath: file.path.replace(path.join(__dirname, '..', '..'), ''),
+                  fileSize: file.size,
+                  fileType: file.mimetype,
+                  uploadedBy: req.user.id,
+                  isPublic: false
+                };
+
+                const fileId = await File.create(fileData);
+                const newFile = await File.findById(fileId);
+                
+                uploadedFiles.push({
+                  id: newFile.id,
+                  name: newFile.name,
+                  originalName: newFile.original_name,
+                  description: newFile.description,
+                  deposantNom: newFile.deposant_nom,
+                  deposantEmail: newFile.deposant_email,
+                  deposantBanque: newFile.deposant_banque,
+                  fileSize: newFile.file_size,
+                  fileType: newFile.file_type,
+                  uploadedAt: newFile.uploaded_at
+                });
+              }
+
+              // Valider la transaction
+              connection.commit((err) => {
+                if (err) {
+                  return connection.rollback(() => {
+                    connection.release();
+                    // Supprimer tous les fichiers uploadés
+                    uploadedFilePaths.forEach(filePath => {
+                      if (fs.existsSync(filePath)) {
+                        fs.unlinkSync(filePath);
+                      }
+                    });
+
+                    res.status(500).json({
+                      success: false,
+                      message: 'Erreur lors de la validation de la transaction'
+                    });
+                  });
+                }
+
+                connection.release();
+                res.status(201).json({
+                  success: true,
+                  message: `Tous les fichiers (${uploadedFiles.length}) ont été déposés avec succès`,
+                  files: uploadedFiles,
+                  totalFiles: uploadedFiles.length
+                });
+              });
+
+            } catch (error) {
+              // Annuler la transaction
+              connection.rollback(() => {
+                connection.release();
+                // Supprimer tous les fichiers uploadés
+                uploadedFilePaths.forEach(filePath => {
+                  if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                  }
+                });
+
+                res.status(500).json({
+                  success: false,
+                  message: 'Erreur lors de la sauvegarde en base de données',
+                  error: error.message
+                });
+              });
+            }
+          });
+        });
+      });
+    } catch (error) {
+      console.error('Erreur lors de l\'upload multiple:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erreur interne du serveur'
+      });
+    }
+  }
+
+  // Récupérer les fichiers déposés par l'utilisateur connecté avec pagination et filtres
+  static async getUserDeposits(req, res) {
+    try {
+      // Vérifier que l'utilisateur a le rôle 'user'
+      if (req.user.role !== 'user') {
+        return res.status(403).json({
+          success: false,
+          message: 'Accès refusé. Seuls les utilisateurs peuvent voir leurs dépôts.'
+        });
+      }
+
+      const userId = req.user.id;
+      const page = parseInt(req.query.page) || 1;
+      const limit = 10; // 10 éléments par page
+      
+      // Récupérer les filtres depuis les paramètres de requête
+      const filters = {
+        searchTerm: req.query.search || '',
+        fileType: req.query.fileType || 'all'
+      };
+      
+      const result = await File.findByUserPaginated(userId, page, limit, filters);
+      
+      res.json({
+        success: true,
+        deposits: result.files.map(file => ({
+          id: file.id,
+          name: file.name,
+          originalName: file.original_name,
+          description: file.description,
+          deposantNom: file.deposant_nom,
+          deposantEmail: file.deposant_email,
+          deposantBanque: file.deposant_banque,
+          fileSize: file.file_size,
+          fileType: file.file_type,
+          downloadCount: file.download_count,
+          uploadedAt: file.uploaded_at
+        })),
+        pagination: result.pagination
+      });
+    } catch (error) {
+      console.error('Erreur lors de la récupération des dépôts:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erreur interne du serveur'
+      });
+    }
+  }
+
+  // Récupérer tous les dépôts (pour les administrateurs et NSIA Vie) avec pagination et filtres
+  static async getAllDeposits(req, res) {
+    try {
+      // Vérifier que l'utilisateur a les droits d'administration
+      if (req.user.role !== 'admin' && req.user.role !== 'nsia_vie') {
+        return res.status(403).json({
+          success: false,
+          message: 'Accès refusé. Droits insuffisants.'
+        });
+      }
+
+      const page = parseInt(req.query.page) || 1;
+      const limit = 10; // 10 éléments par page
+      
+      // Récupérer les filtres depuis les paramètres de requête
+      const filters = {
+        searchTerm: req.query.search || '',
+        fileType: req.query.fileType || 'all',
+        banque: req.query.banque || 'all'
+      };
+      
+      const result = await File.findAllPaginated(page, limit, filters);
+      
+      res.json({
+        success: true,
+        deposits: result.files.map(file => ({
+          id: file.id,
+          name: file.name,
+          originalName: file.original_name,
+          description: file.description,
+          deposantNom: file.deposant_nom,
+          deposantEmail: file.deposant_email,
+          deposantBanque: file.deposant_banque,
+          fileSize: file.file_size,
+          fileType: file.file_type,
+          downloadCount: file.download_count,
+          uploadedAt: file.uploaded_at,
+          uploadedByName: file.uploaded_by_name
+        })),
+        pagination: result.pagination
+      });
+    } catch (error) {
+      console.error('Erreur lors de la récupération des dépôts:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erreur interne du serveur'
+      });
+    }
+  }
+
+  // Obtenir les statistiques des dépôts
+  static async getDepositStats(req, res) {
+    try {
+      const stats = await File.getStats();
+      
+      res.json({
+        success: true,
+        stats: {
+          totalDeposits: stats.total_files,
+          totalSize: stats.total_size,
+          totalDownloads: stats.total_downloads,
+          uniqueDepositors: stats.unique_uploaders
+        }
+      });
+    } catch (error) {
+      console.error('Erreur lors de la récupération des statistiques:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erreur interne du serveur'
+      });
+    }
+  }
+
+  // Récupérer la liste des banques pour les filtres
+  static async getBanques(req, res) {
+    try {
+      const banques = await Banque.getBanquesForFilter();
+      
+      res.json({
+        success: true,
+        banques: banques
+      });
+    } catch (error) {
+      console.error('Erreur lors de la récupération des banques:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erreur interne du serveur'
+      });
+    }
+  }
+}
+
+module.exports = UserUploadController;

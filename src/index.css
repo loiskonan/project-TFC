@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Variables CSS personnalisées */
+:root {
+  --primary-blue: rgb(16, 16, 92);
+  --primary-blue-hover: rgb(20, 20, 110);
+  --primary-blue-light: rgb(32, 32, 120);
+  --primary-blue-lighter: rgb(48, 48, 140);
+}
+
+/* Classes utilitaires personnalisées */
+.bg-primary-blue {
+  background-color: var(--primary-blue);
+}
+
+.bg-primary-blue-hover {
+  background-color: var(--primary-blue-hover);
+}
+
+.bg-primary-blue-light {
+  background-color: var(--primary-blue-light);
+}
+
+.bg-primary-blue-lighter {
+  background-color: var(--primary-blue-lighter);
+}
+
+.text-primary-blue {
+  color: var(--primary-blue);
+}
+
+.border-primary-blue {
+  border-color: var(--primary-blue);
+}
+
+.hover\:bg-primary-blue-hover:hover {
+  background-color: var(--primary-blue-hover);
+}
+
+.hover\:text-primary-blue:hover {
+  color: var(--primary-blue);
+}
+
+.focus\:ring-primary-blue:focus {
+  --tw-ring-color: var(--primary-blue);
+}
