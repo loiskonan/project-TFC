@@ -6,10 +6,11 @@ import Header from './components/Layout/Header';
 import Dashboard from './components/Dashboard/Dashboard';
 import FileUpload from './components/Files/FileUpload';
 import FileList from './components/Files/FileList';
-import ActionHistory from './components/History/ActionHistory';
+import FileManagement from './components/Files/FileManagement';
 import UserReports from './components/Reports/UserReports';
+import Reports from './components/Reports/Reports';
 import UserManagement from './components/Admin/UserManagement';
-import GlobalReports from './components/Reports/GlobalReports';
+import BankPasswords from './components/Admin/BankPasswords';
 import Settings from './components/Settings/Settings';
 
 const AppContent: React.FC = () => {
@@ -26,16 +27,16 @@ const AppContent: React.FC = () => {
         return <Dashboard />;
       case 'files':
         return <FileList />;
+      case 'file-management':
+        return <FileManagement />;
       case 'upload':
         return <FileUpload />;
-      case 'history':
-        return <ActionHistory />;
       case 'reports':
-        return <UserReports />;
+        return <Reports />;
       case 'users':
         return currentUser.role === 'admin' ? <UserManagement /> : <Dashboard />;
-      case 'global-reports':
-        return (currentUser.role === 'admin' || currentUser.role === 'nsia_vie') ? <GlobalReports /> : <Dashboard />;
+      case 'bank-passwords':
+        return (currentUser.role === 'admin' || currentUser.role === 'nsia_vie') ? <BankPasswords /> : <Dashboard />;
       case 'settings':
         return <Settings />;
       default:

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { 
   Upload, 
   X, 
@@ -11,7 +11,8 @@ import {
   Database,
   Archive,
   FileSpreadsheet,
-  FileCode
+  FileCode,
+  Building2
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
@@ -42,6 +43,46 @@ const FileUpload: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  
+  // États pour la sélection de banque (admin et nsia_vie)
+  const [banques, setBanques] = useState<Array<{id: number, nom: string}>>([]);
+  const [selectedBanque, setSelectedBanque] = useState<number | null>(null);
+  const [loadingBanques, setLoadingBanques] = useState(false);
+
+  // Récupérer la liste des banques pour les admins et nsia_vie
+  useEffect(() => {
+    if (currentUser?.role === 'admin' || currentUser?.role === 'nsia_vie') {
+      fetchBanques();
+    }
+  }, [currentUser?.role]);
+
+  const fetchBanques = async () => {
+    setLoadingBanques(true);
+    try {
+      const token = localStorage.getItem('dataflow_token');
+      const response = await axios.get('http://localhost:5000/api/banques/active', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.data.success) {
+        setBanques(response.data.banques);
+      }
+    } catch (error) {
+    } finally {
+      setLoadingBanques(false);
+    }
+  };
+
+  const handleBanqueSelect = (banqueId: number) => {
+    setSelectedBanque(banqueId);
+    // Réinitialiser les autres états quand on change de banque
+    setUploadQueue([]);
+    setUploadStatus({});
+    setError('');
+    setSuccess('');
+  };
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -126,7 +167,32 @@ const FileUpload: React.FC = () => {
       // Ajouter la description
       formData.append('description', description);
 
-      const response = await axios.post('http://localhost:5000/api/user-uploads/upload-multiple', formData, {
+      let endpoint = '';
+      
+      // Utiliser la nouvelle API file-send pour admin/nsia_vie
+      if (currentUser?.role === 'admin' || currentUser?.role === 'nsia_vie') {
+        if (!selectedBanque) {
+          setError('Veuillez sélectionner une banque');
+          setIsLoading(false);
+          return;
+        }
+        const banque = banques.find(b => b.id === selectedBanque);
+        if (!banque) {
+          setError('Banque sélectionnée introuvable');
+          setIsLoading(false);
+          return;
+        }
+        
+        formData.append('banqueDestinataire', banque.nom);
+        formData.append('banqueCode', banque.nom); // Utiliser le nom comme code pour l'instant
+        
+        endpoint = 'http://localhost:5000/api/file-send/upload-multiple';
+      } else {
+        // Pour les utilisateurs normaux, utiliser l'ancienne API
+        endpoint = 'http://localhost:5000/api/user-uploads/upload-multiple';
+      }
+
+      const response = await axios.post(endpoint, formData, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
@@ -150,7 +216,6 @@ const FileUpload: React.FC = () => {
         }, 2000);
       }
     } catch (error: any) {
-      console.error('Erreur upload:', error);
       
       if (error.response?.data?.errors) {
         // Erreurs détaillées pour certains fichiers
@@ -202,6 +267,258 @@ const FileUpload: React.FC = () => {
             </span>
           </h1>
         </div>
+
+        {/* Interface spéciale pour les admins et nsia_vie */}
+        {(currentUser?.role === 'admin' || currentUser?.role === 'nsia_vie') && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Sélectionner une banque</h3>
+            
+            {loadingBanques ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <span className="ml-3 text-gray-600">Chargement des banques...</span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {banques.map((banque) => (
+                  <div
+                    key={banque.id}
+                    onClick={() => handleBanqueSelect(banque.id)}
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 hover:shadow-md ${
+                      selectedBanque === banque.id
+                        ? 'border-yellow-400 bg-yellow-50 shadow-md'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <Building2 className={`h-6 w-6 ${
+                        selectedBanque === banque.id ? 'text-yellow-600' : 'text-gray-500'
+                      }`} />
+                      <div>
+                        <h4 className={`font-medium ${
+                          selectedBanque === banque.id ? 'text-yellow-800' : 'text-gray-900'
+                        }`}>
+                          {banque.nom}
+                        </h4>
+                        <p className={`text-sm ${
+                          selectedBanque === banque.id ? 'text-yellow-600' : 'text-gray-500'
+                        }`}>
+                          Cliquer pour sélectionner
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {selectedBanque && (
+              <>
+                {/* Confirmation de sélection */}
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  
+                  <p className="text-sm text-blue-700">
+                    Vous pouvez maintenant déposer des fichiers pour cette banque.
+                  </p>
+                </div>
+
+                {/* Titre avec nom de la banque */}
+                <div className="mt-6 text-center">
+                  <h1 className="font-bold text-3xl mb-4">
+                    <span style={{ color: 'rgb(215, 153, 14)' }}>
+                      {banques.find(b => b.id === selectedBanque)?.nom}
+                    </span>
+                  </h1>
+                </div>
+
+                {/* Zone d'upload */}
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Upload de fichiers</h3>
+                  
+                  <div
+                    className={`border-2 border-dashed rounded-xl p-12 text-center transition-all duration-200 ${
+                      dragActive
+                        ? 'border-primary-blue bg-primary-blue-lighter'
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                    onDragEnter={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDragOver={handleDrag}
+                    onDrop={handleDrop}
+                  >
+                    <Upload className={`h-12 w-12 mx-auto mb-4 ${
+                      dragActive ? 'text-blue-500' : 'text-gray-400'
+                    }`} />
+                    <p className="text-lg font-medium text-gray-700 mb-2">
+                      Glissez-déposez vos fichiers ici
+                    </p>
+                    <p className="text-gray-500 mb-2">
+                      ou cliquez pour sélectionner des fichiers
+                    </p>
+                    <p className="text-sm text-gray-400 mb-2">
+                      Taille maximale par fichier : <span className="font-medium">50 MB</span>
+                    </p>
+                    <p className="text-sm text-gray-400 mb-4">
+                      Types autorisés : PDF, Word, Excel, PowerPoint, Images, Archives, Médias
+                    </p>
+                    <input
+                      type="file"
+                      multiple
+                      onChange={handleFileSelect}
+                      className="hidden"
+                      id="file-upload-admin"
+                    />
+                    <label
+                      htmlFor="file-upload-admin"
+                      className="inline-flex items-center px-6 py-3 bg-primary-blue text-white rounded-lg hover:bg-primary-blue-hover transition-colors cursor-pointer"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Sélectionner des fichiers
+                    </label>
+                  </div>
+                </div>
+
+                {/* Messages d'erreur et succès */}
+                {error && (
+                  <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-red-700 text-sm">{error}</p>
+                  </div>
+                )}
+
+                {success && (
+                  <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-3">
+                    <p className="text-green-700 text-sm">{success}</p>
+                  </div>
+                )}
+
+                {/* Liste des fichiers en attente */}
+                {uploadQueue.length > 0 && (
+                  <div className="mt-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-semibold text-gray-900">
+                        Fichiers en attente ({uploadQueue.length})
+                      </h4>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => {
+                            setUploadQueue([]);
+                            setUploadStatus({});
+                          }}
+                          className="px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
+                          title="Effacer tous les fichiers"
+                        >
+                          Effacer tout
+                        </button>
+                        <button
+                          onClick={processUploads}
+                          disabled={isLoading}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {isLoading ? 'Upload en cours...' : 'Uploader tous'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Sélection du mois et de l'année */}
+                    <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <h5 className="font-medium text-blue-900 mb-3">Description du lot *</h5>
+                      <div className="flex items-end space-x-3">
+                        <div className="flex-1">
+                          <label className="block text-sm font-medium text-blue-700 mb-1">
+                            Mois
+                          </label>
+                          <select
+                            value={selectedMonth}
+                            onChange={(e) => setSelectedMonth(e.target.value)}
+                            className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            required
+                          >
+                            <option value="">Sélectionnez un mois</option>
+                            {MONTHS.map((month) => (
+                              <option key={month.value} value={month.value}>
+                                {month.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-sm font-medium text-blue-700 mb-1">
+                            Année
+                          </label>
+                          <input
+                            type="number"
+                            value={selectedYear}
+                            onChange={(e) => setSelectedYear(e.target.value)}
+                            placeholder="2024"
+                            min="2000"
+                            max="2100"
+                            className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            required
+                          />
+                        </div>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={clearBatchDescription}
+                            className="px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
+                          >
+                            Effacer
+                          </button>
+                        </div>
+                      </div>
+                      {selectedMonth && selectedYear && (
+                        <div className="mt-3 p-2 bg-white rounded border border-blue-200">
+                          <p className="text-sm text-blue-800">
+                            <strong>Description générée :</strong> {generateDescription()}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {uploadQueue.map((file, index) => {
+                        const fileKey = `${file.name}-${file.size}`;
+                        const status = uploadStatus[fileKey];
+                        
+                        return (
+                          <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex items-center space-x-3">
+                              <div className="flex items-center">
+                                {status === 'uploading' && (
+                                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                                )}
+                                {status === 'success' && (
+                                  <CheckCircle className="h-5 w-5 text-green-600" />
+                                )}
+                                {status === 'error' && (
+                                  <AlertCircle className="h-5 w-5 text-red-600" />
+                                )}
+                                {!status && (
+                                  <div className="h-5 w-5 rounded-full bg-gray-300"></div>
+                                )}
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900">{file.name}</p>
+                                <p className="text-sm text-gray-500">{formatFileSize(file.size)}</p>
+                              </div>
+                            </div>
+                            
+                            <button
+                              onClick={() => removeFromQueue(index)}
+                              className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                              title="Retirer le fichier"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
     );
   }

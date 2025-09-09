@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const SystemConfig = require('../models/SystemConfig');
 const bcrypt = require('bcrypt');
+const { getPasswordForBank } = require('../utils/passwordGenerator');
 
 class UserController {
   // Récupérer tous les utilisateurs avec pagination et filtres
@@ -16,7 +17,6 @@ class UserController {
       const role = req.query.role || '';
       const status = req.query.status || '';
 
-      console.log('Filtres reçus:', { search, banque, role, status });
 
       // Récupérer les utilisateurs avec pagination et filtres
       const users = await User.findAllPaginatedWithFilters(limit, offset, { search, banque, role, status });
@@ -44,7 +44,6 @@ class UserController {
         }
       });
     } catch (error) {
-      console.error('Erreur lors de la récupération des utilisateurs:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -66,7 +65,6 @@ class UserController {
         }
       });
     } catch (error) {
-      console.error('Erreur lors de la récupération des statistiques:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -92,7 +90,6 @@ class UserController {
         user: user
       });
     } catch (error) {
-      console.error('Erreur lors de la récupération de l\'utilisateur:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -130,11 +127,26 @@ class UserController {
         });
       }
 
-      // Récupérer le mot de passe par défaut hashé depuis la configuration
-      const hashedDefaultPassword = await SystemConfig.getConfig('default_password');
+      // Déterminer le mot de passe selon le rôle et la banque
+      let password;
       
-      // Si aucun mot de passe par défaut n'est configuré, utiliser le mot de passe par défaut et le hasher
-      const hashedPassword = hashedDefaultPassword ;
+      if (role === 'user' && banque) {
+        try {
+          // Générer le mot de passe spécifique à la banque
+          password = getPasswordForBank(banque);
+        } catch (error) {
+          // En cas d'erreur, utiliser le mot de passe par défaut du système
+          const defaultPassword = await SystemConfig.getConfig('default_password');
+          password = defaultPassword || "Default@2025";
+        }
+      } else {
+        // Pour admin et nsia_vie, toujours utiliser le mot de passe par défaut du système
+        const defaultPassword = await SystemConfig.getConfig('default_password');
+        password = defaultPassword || "Default@2025";
+      }
+      
+      // Hasher le mot de passe
+      const hashedPassword = await bcrypt.hash(password, 10);
 
       const userId = await User.create({
         name,
@@ -148,11 +160,12 @@ class UserController {
 
       res.status(201).json({
         success: true,
-        message: 'Utilisateur créé avec succès. Mot de passe par défaut configuré dans les paramètres système.',
+        message: role === 'user' && banque 
+          ? `Utilisateur créé avec succès. Mot de passe généré pour la banque ${banque}.`
+          : 'Utilisateur créé avec succès. Mot de passe par défaut configuré dans les paramètres système.',
         user: newUser
       });
     } catch (error) {
-      console.error('Erreur lors de la création de l\'utilisateur:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -201,7 +214,6 @@ class UserController {
         user: updatedUser
       });
     } catch (error) {
-      console.error('Erreur lors de la mise à jour de l\'utilisateur:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -229,7 +241,6 @@ class UserController {
         message: 'Utilisateur supprimé avec succès'
       });
     } catch (error) {
-      console.error('Erreur lors de la suppression de l\'utilisateur:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -268,7 +279,6 @@ class UserController {
         user: updatedUser
       });
     } catch (error) {
-      console.error('Erreur lors du changement de rôle:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -300,7 +310,6 @@ class UserController {
         user: updatedUser
       });
     } catch (error) {
-      console.error('Erreur lors du changement de statut:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'

@@ -5,11 +5,11 @@ import {
   Home, 
   Upload, 
   Download, 
-  History, 
   BarChart3, 
   Users, 
   Settings,
-  FileText
+  FileText,
+  Key
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -25,16 +25,22 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
 
   const menuItems = [
     { id: 'dashboard', label: 'Tableau de bord', icon: Home },
-    { id: 'files', label: 'Mes fichiers', icon: FileText },
+    { 
+      id: 'files', 
+      label: currentUser?.role === 'user' ? 'Fichiers envoyés' : 'Fichiers reçus', 
+      icon: FileText 
+    },
+    { 
+      id: 'file-management', 
+      label: currentUser?.role === 'user' ? 'Fichiers reçus' : 'Fichiers envoyés', 
+      icon: Download 
+    },
     { id: 'upload', label: 'Upload', icon: Upload },
-    { id: 'history', label: 'Historique', icon: History },
     { id: 'reports', label: 'Rapports', icon: BarChart3 },
     { id: 'settings', label: 'Paramètres', icon: Settings },
-    ...(isAdmin ? [
+    ...(isAdmin || isNsiaVie ? [
       { id: 'users', label: 'Utilisateurs', icon: Users },
-      { id: 'global-reports', label: 'Rapports globaux', icon: BarChart3 }
-    ] : isNsiaVie ? [
-      { id: 'global-reports', label: 'Rapports globaux', icon: BarChart3 }
+      { id: 'bank-passwords', label: 'Mots de passe banques', icon: Key }
     ] : [])
   ];
 

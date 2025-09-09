@@ -56,7 +56,6 @@ const Settings: React.FC = () => {
         setIsDefaultPasswordConfigured(response.data.isConfigured);
       }
     } catch (error) {
-      console.error('Erreur lors du chargement du statut du mot de passe par défaut:', error);
     }
   };
 

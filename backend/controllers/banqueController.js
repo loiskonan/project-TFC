@@ -1,4 +1,6 @@
 const Banque = require('../models/Banque');
+const User = require('../models/User');
+const { generatePasswordsForAllBanks } = require('../utils/passwordGenerator');
 
 class BanqueController {
   // Récupérer toutes les banques
@@ -10,7 +12,6 @@ class BanqueController {
         banques: banques
       });
     } catch (error) {
-      console.error('Erreur lors de la récupération des banques:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -36,7 +37,6 @@ class BanqueController {
         banque: banque
       });
     } catch (error) {
-      console.error('Erreur lors de la récupération de la banque:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -88,7 +88,6 @@ class BanqueController {
         banque: newBanque
       });
     } catch (error) {
-      console.error('Erreur lors de la création de la banque:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -145,7 +144,6 @@ class BanqueController {
         banque: updatedBanque
       });
     } catch (error) {
-      console.error('Erreur lors de la mise à jour de la banque:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -173,7 +171,6 @@ class BanqueController {
         message: 'Banque supprimée avec succès'
       });
     } catch (error) {
-      console.error('Erreur lors de la suppression de la banque:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -205,7 +202,6 @@ class BanqueController {
         banque: updatedBanque
       });
     } catch (error) {
-      console.error('Erreur lors du changement de statut de la banque:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -223,7 +219,57 @@ class BanqueController {
         banques: banques
       });
     } catch (error) {
-      console.error('Erreur lors de la récupération des banques actives:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erreur interne du serveur'
+      });
+    }
+  }
+
+  // Récupérer les mots de passe par banque avec pagination
+  static async getBankPasswordsPaginated(req, res) {
+    try {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const offset = (page - 1) * limit;
+
+      // Récupérer les banques avec pagination
+      const banques = await Banque.findAllPaginated(limit, offset);
+      
+      // Compter le total
+      const total = await Banque.countAll();
+
+      // Générer les mots de passe et compter les utilisateurs
+      const banquesWithPasswords = await Promise.all(
+        banques.map(async (banque) => {
+          // Compter les utilisateurs de cette banque
+          const userCount = await User.countByBanque(banque.nom);
+
+          return {
+            id: banque.id,
+            nom: banque.nom,
+            code: banque.code,
+            motDePasse: generatePasswordsForAllBanks([banque])[0].motDePasse,
+            nombreUtilisateurs: userCount,
+            isActive: banque.isActive
+          };
+        })
+      );
+
+      const totalPages = Math.ceil(total / limit);
+
+      res.json({
+        success: true,
+        banques: banquesWithPasswords,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems: total,
+          itemsPerPage: limit
+        }
+      });
+
+    } catch (error) {
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'

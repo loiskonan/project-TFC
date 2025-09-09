@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const AuthController = require('../controllers/authController');
 const { authenticateToken } = require('../middleware/auth');
+const { validateLogin } = require('../middleware/validation');
 
 // Route de connexion
-router.post('/login', AuthController.login);
+router.post('/login', validateLogin, AuthController.login);
 
 // Route de récupération de mot de passe
 router.post('/forgot-password', AuthController.forgotPassword);

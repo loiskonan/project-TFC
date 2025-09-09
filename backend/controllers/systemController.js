@@ -15,7 +15,6 @@ class SystemController {
           : 'Mot de passe par défaut non configuré (utilise dataflow@225)'
       });
     } catch (error) {
-      console.error('Erreur lors de la récupération du mot de passe par défaut:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -58,7 +57,6 @@ class SystemController {
         message: 'Mot de passe par défaut mis à jour avec succès'
       });
     } catch (error) {
-      console.error('Erreur lors de la mise à jour du mot de passe par défaut:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -76,7 +74,6 @@ class SystemController {
         config: config
       });
     } catch (error) {
-      console.error('Erreur lors de la récupération de la configuration:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'

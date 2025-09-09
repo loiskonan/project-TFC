@@ -47,6 +47,10 @@ const UserManagement: React.FC = () => {
     activeUsers: 0
   });
 
+  // Log des changements de stats
+  useEffect(() => {
+  }, [stats]);
+
   // États pour les filtres
   const [filters, setFilters] = useState({
     search: '',
@@ -93,8 +97,6 @@ const UserManagement: React.FC = () => {
       if (currentFilters.role) params.append('role', currentFilters.role);
       if (currentFilters.status) params.append('status', currentFilters.status);
 
-      console.log('Filtres envoyés:', currentFilters);
-      console.log('URL de requête:', `http://localhost:5000/api/users?${params.toString()}`);
 
       const response = await axios.get(`http://localhost:5000/api/users?${params.toString()}`, {
         headers: {
@@ -130,9 +132,16 @@ const UserManagement: React.FC = () => {
         }
       });
 
-      setStats(response.data.stats);
+      
+      // Vérifier que les données sont valides avant de les mettre à jour
+      if (response.data && response.data.stats && 
+          typeof response.data.stats.totalUsers === 'number' && 
+          typeof response.data.stats.activeUsers === 'number') {
+        setStats(response.data.stats);
+      } else {
+      }
     } catch (error: any) {
-      console.error('Erreur lors du chargement des statistiques:', error);
+      // Ne pas réinitialiser les statistiques en cas d'erreur
     }
   };
 
@@ -148,7 +157,6 @@ const UserManagement: React.FC = () => {
 
       setBanques(response.data.banques);
     } catch (error) {
-      console.error('Erreur lors du chargement des banques:', error);
     }
   };
 
@@ -156,9 +164,16 @@ const UserManagement: React.FC = () => {
   const filteredUsers = users;
 
   useEffect(() => {
-    loadUsers();
-    loadBanques();
-    loadStats();
+    const initializeData = async () => {
+      try {
+        await loadUsers();
+        await loadBanques();
+        await loadStats();
+      } catch (error) {
+      }
+    };
+    
+    initializeData();
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {

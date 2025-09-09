@@ -235,6 +235,78 @@ class File {
     });
   }
 
+  static async findByBanquePaginated(banque, page = 1, limit = 3, filters = {}) {
+    return new Promise((resolve, reject) => {
+      const offset = (page - 1) * limit;
+      
+      // Construire les conditions de filtrage
+      let whereConditions = ['f.deposant_banque = ?'];
+      let queryParams = [banque];
+      
+      // Filtre par nom de fichier
+      if (filters.searchTerm && filters.searchTerm.trim()) {
+        whereConditions.push('(f.original_name LIKE ? OR f.description LIKE ?)');
+        const searchPattern = `%${filters.searchTerm.trim()}%`;
+        queryParams.push(searchPattern, searchPattern);
+      }
+      
+      // Filtre par type de fichier
+      if (filters.fileType && filters.fileType !== 'all') {
+        whereConditions.push('f.file_type LIKE ?');
+        queryParams.push(`%${filters.fileType}%`);
+      }
+      
+      const whereClause = whereConditions.join(' AND ');
+      
+      // Requête pour récupérer les fichiers avec pagination et filtres
+      const query = `
+        SELECT f.*, u.name as uploaded_by_name, u.banque as uploaded_by_banque
+        FROM files f
+        LEFT JOIN users u ON f.uploaded_by = u.id
+        WHERE ${whereClause}
+        ORDER BY f.uploaded_at DESC
+        LIMIT ? OFFSET ?
+      `;
+      
+      // Requête pour compter le total avec filtres
+      const countQuery = `
+        SELECT COUNT(*) as total
+        FROM files f
+        WHERE ${whereClause}
+      `;
+      
+      // Ajouter les paramètres de pagination
+      const queryParamsWithPagination = [...queryParams, limit, offset];
+      
+      db.query(query, queryParamsWithPagination, (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          db.query(countQuery, queryParams, (countErr, countResults) => {
+            if (countErr) {
+              reject(countErr);
+            } else {
+              const total = countResults[0].total;
+              const totalPages = Math.ceil(total / limit);
+              
+              resolve({
+                files: results,
+                pagination: {
+                  currentPage: page,
+                  totalPages: totalPages,
+                  totalItems: total,
+                  itemsPerPage: limit,
+                  hasNextPage: page < totalPages,
+                  hasPrevPage: page > 1
+                }
+              });
+            }
+          });
+        }
+      });
+    });
+  }
+
   static async findAllPaginated(page = 1, limit = 3, filters = {}) {
     return new Promise((resolve, reject) => {
       const offset = (page - 1) * limit;
@@ -308,6 +380,185 @@ class File {
                 }
               });
             }
+          });
+        }
+      });
+    });
+  }
+
+  // Statistiques générales pour réceptions (admin/nsia_vie)
+  static async getStatsReceptions() {
+    return new Promise((resolve, reject) => {
+      const query = `
+        SELECT 
+          COUNT(CASE WHEN uploaded_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 END) as totalFiles,
+          SUM(CASE WHEN uploaded_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN download_count ELSE 0 END) as totalDownloads,
+          SUM(CASE WHEN uploaded_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN file_size ELSE 0 END) as totalSize,
+          COUNT(CASE WHEN uploaded_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 END) as recentUploads
+        FROM files
+      `;
+
+      db.execute(query, (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          const row = result[0];
+          resolve({
+            totalFiles: row.totalFiles || 0,
+            totalDownloads: row.totalDownloads || 0,
+            totalSize: row.totalSize || 0,
+            recentUploads: row.recentUploads || 0
+          });
+        }
+      });
+    });
+  }
+
+  // Statistiques par banque pour réceptions
+  static async getStatsByBank(banqueDestinataire) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        SELECT 
+          COUNT(CASE WHEN uploaded_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 END) as totalFiles,
+          SUM(CASE WHEN uploaded_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN download_count ELSE 0 END) as totalDownloads,
+          SUM(CASE WHEN uploaded_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN file_size ELSE 0 END) as totalSize,
+          COUNT(CASE WHEN uploaded_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 END) as recentUploads
+        FROM files
+        WHERE deposant_banque = ?
+      `;
+
+      db.execute(query, [banqueDestinataire], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          const row = result[0];
+          resolve({
+            totalFiles: row.totalFiles || 0,
+            totalDownloads: row.totalDownloads || 0,
+            totalSize: row.totalSize || 0,
+            recentUploads: row.recentUploads || 0
+          });
+        }
+      });
+    });
+  }
+
+  // Fichiers récents pour réceptions (toutes les banques)
+  static async getRecentFilesReceptions(limit = 5) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        SELECT * FROM files 
+        ORDER BY uploaded_at DESC 
+        LIMIT ?
+      `;
+
+      db.execute(query, [limit], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+  }
+
+  // Fichiers récents par banque pour réceptions
+  static async getRecentFilesByBank(banqueDestinataire, limit = 5) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        SELECT * FROM files 
+        WHERE deposant_banque = ?
+        ORDER BY uploaded_at DESC 
+        LIMIT ?
+      `;
+
+      db.execute(query, [banqueDestinataire, limit], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+  }
+
+  // Répartition des fichiers par banque pour réceptions
+  static async getFilesByBankReceptions() {
+    return new Promise((resolve, reject) => {
+      const query = `
+        SELECT 
+          deposant_banque,
+          COUNT(*) as count
+        FROM files 
+        GROUP BY deposant_banque
+        ORDER BY count DESC
+      `;
+
+      db.execute(query, (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          const filesByBank = {};
+          result.forEach(row => {
+            filesByBank[row.deposant_banque] = row.count;
+          });
+          resolve(filesByBank);
+        }
+      });
+    });
+  }
+
+  // Statistiques complètes pour réceptions (toutes les données sans filtre de période)
+  static async getStatsReceptionsComplete() {
+    return new Promise((resolve, reject) => {
+      const query = `
+        SELECT 
+          COUNT(*) as totalFiles,
+          SUM(download_count) as totalDownloads,
+          SUM(file_size) as totalSize,
+          COUNT(CASE WHEN uploaded_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 END) as recentUploads
+        FROM files
+      `;
+
+      db.execute(query, (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          const row = result[0];
+          resolve({
+            totalFiles: row.totalFiles || 0,
+            totalDownloads: row.totalDownloads || 0,
+            totalSize: row.totalSize || 0,
+            recentUploads: row.recentUploads || 0
+          });
+        }
+      });
+    });
+  }
+
+  // Statistiques complètes par banque pour réceptions (toutes les données sans filtre de période)
+  static async getStatsByBankComplete(banqueDestinataire) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        SELECT 
+          COUNT(*) as totalFiles,
+          SUM(download_count) as totalDownloads,
+          SUM(file_size) as totalSize,
+          COUNT(CASE WHEN uploaded_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 END) as recentUploads
+        FROM files
+        WHERE deposant_banque = ?
+      `;
+
+      db.execute(query, [banqueDestinataire], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          const row = result[0];
+          resolve({
+            totalFiles: row.totalFiles || 0,
+            totalDownloads: row.totalDownloads || 0,
+            totalSize: row.totalSize || 0,
+            recentUploads: row.recentUploads || 0
           });
         }
       });

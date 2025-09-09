@@ -107,7 +107,6 @@ class FileController {
         });
       });
     } catch (error) {
-      console.error('Erreur lors de l\'upload:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -125,7 +124,6 @@ class FileController {
         files: files
       });
     } catch (error) {
-      console.error('Erreur lors de la récupération des fichiers:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -144,7 +142,6 @@ class FileController {
         files: files
       });
     } catch (error) {
-      console.error('Erreur lors de la récupération des fichiers:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -180,13 +177,10 @@ class FileController {
       // Mettre à jour le compteur de téléchargements
       await File.updateDownloadCount(id);
 
-      console.log(`📥 Téléchargement du fichier: ${file.original_name} (ID: ${id})`);
-      console.log(`📁 Chemin du fichier: ${filePath}`);
 
       // Envoyer le fichier avec le nom original
       res.download(filePath, file.original_name, (err) => {
         if (err) {
-          console.error('Erreur lors de l\'envoi du fichier:', err);
           if (!res.headersSent) {
             res.status(500).json({
               success: false,
@@ -196,7 +190,6 @@ class FileController {
         }
       });
     } catch (error) {
-      console.error('Erreur lors du téléchargement:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -232,7 +225,6 @@ class FileController {
         message: 'Fichier supprimé avec succès'
       });
     } catch (error) {
-      console.error('Erreur lors de la suppression:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -250,7 +242,6 @@ class FileController {
         stats: stats
       });
     } catch (error) {
-      console.error('Erreur lors de la récupération des statistiques:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'

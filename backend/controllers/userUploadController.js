@@ -122,7 +122,6 @@ class UserUploadController {
             });
           }
         } catch (error) {
-          console.error('Erreur lors de la vérification du nom de fichier:', error);
           // Supprimer le fichier uploadé
           fs.unlinkSync(req.file.path);
           return res.status(500).json({
@@ -168,7 +167,6 @@ class UserUploadController {
         });
       });
     } catch (error) {
-      console.error('Erreur lors de l\'upload utilisateur:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -252,7 +250,6 @@ class UserUploadController {
             });
           }
         } catch (error) {
-          console.error('Erreur lors de la vérification des noms de fichiers:', error);
           // Supprimer tous les fichiers uploadés
           req.files.forEach(file => {
             if (fs.existsSync(file.path)) {
@@ -275,7 +272,6 @@ class UserUploadController {
           try {
             // Accepter tous les types de fichiers
             // Note: La validation du type de fichier est désactivée pour permettre tous les formats
-            console.log(`Fichier accepté: ${file.originalname} (${file.mimetype})`);
 
             uploadedFilePaths.push(file.path);
           } catch (error) {
@@ -426,7 +422,6 @@ class UserUploadController {
         });
       });
     } catch (error) {
-      console.error('Erreur lors de l\'upload multiple:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -445,17 +440,25 @@ class UserUploadController {
         });
       }
 
-      const userId = req.user.id;
+      // Vérifier que l'utilisateur a une banque assignée
+      if (!req.user.banque) {
+        return res.status(400).json({
+          success: false,
+          message: 'Banque non définie pour cet utilisateur'
+        });
+      }
+
       const page = parseInt(req.query.page) || 1;
       const limit = 10; // 10 éléments par page
       
       // Récupérer les filtres depuis les paramètres de requête
       const filters = {
         searchTerm: req.query.search || '',
-        fileType: req.query.fileType || 'all'
+        fileType: req.query.fileType || 'all',
+        banque: req.user.banque // Filtrer par banque de l'utilisateur
       };
       
-      const result = await File.findByUserPaginated(userId, page, limit, filters);
+      const result = await File.findByBanquePaginated(req.user.banque, page, limit, filters);
       
       res.json({
         success: true,
@@ -475,7 +478,6 @@ class UserUploadController {
         pagination: result.pagination
       });
     } catch (error) {
-      console.error('Erreur lors de la récupération des dépôts:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -525,7 +527,6 @@ class UserUploadController {
         pagination: result.pagination
       });
     } catch (error) {
-      console.error('Erreur lors de la récupération des dépôts:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -548,7 +549,6 @@ class UserUploadController {
         }
       });
     } catch (error) {
-      console.error('Erreur lors de la récupération des statistiques:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -566,10 +566,171 @@ class UserUploadController {
         banques: banques
       });
     } catch (error) {
-      console.error('Erreur lors de la récupération des banques:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
+      });
+    }
+  }
+
+  // Statistiques pour admin/nsia_vie (réceptions de toutes les banques)
+  static async getStatsReceptions(req, res) {
+    try {
+      const stats = await File.getStatsReceptions();
+      const recentFiles = await File.getRecentFilesReceptions(5);
+      const filesByBank = await File.getFilesByBankReceptions();
+
+      res.json({
+        success: true,
+        data: {
+          totalFiles: stats.totalFiles,
+          totalDownloads: stats.totalDownloads,
+          totalSize: stats.totalSize,
+          recentUploads: stats.recentUploads,
+          filesByBank,
+          recentFiles: recentFiles.map(file => ({
+            id: file.id,
+            original_name: file.original_name,
+            file_size: file.file_size,
+            file_type: file.file_type,
+            deposant_nom: file.deposant_nom,
+            deposant_banque: file.deposant_banque,
+            created_at: file.created_at,
+            download_count: file.download_count
+          }))
+        }
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Erreur interne du serveur',
+        error: error.message
+      });
+    }
+  }
+
+  // Statistiques pour utilisateurs normaux (leurs envois)
+  static async getStatsUser(req, res) {
+    try {
+      const banqueDestinataire = req.user.banque || '';
+      
+      if (!banqueDestinataire) {
+        return res.status(400).json({
+          success: false,
+          message: 'Banque non définie pour cet utilisateur'
+        });
+      }
+
+      const stats = await File.getStatsByBank(banqueDestinataire);
+      const recentFiles = await File.getRecentFilesByBank(banqueDestinataire, 5);
+
+      res.json({
+        success: true,
+        data: {
+          totalFiles: stats.totalFiles,
+          totalDownloads: stats.totalDownloads,
+          totalSize: stats.totalSize,
+          recentUploads: stats.recentUploads,
+          recentFiles: recentFiles.map(file => ({
+            id: file.id,
+            original_name: file.original_name,
+            file_size: file.file_size,
+            file_type: file.file_type,
+            deposant_nom: file.deposant_nom,
+            deposant_banque: file.deposant_banque,
+            created_at: file.created_at,
+            download_count: file.download_count
+          }))
+        }
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Erreur interne du serveur',
+        error: error.message
+      });
+    }
+  }
+
+  // Statistiques complètes pour admin/nsia_vie (réceptions de toutes les banques sans filtre de période)
+  static async getStatsReceptionsComplete(req, res) {
+    try {
+      const stats = await File.getStatsReceptionsComplete();
+      const recentFiles = await File.getRecentFilesReceptions(5);
+      const filesByBank = await File.getFilesByBankReceptions();
+
+      res.json({
+        success: true,
+        data: {
+          totalFiles: stats.totalFiles,
+          totalDownloads: stats.totalDownloads,
+          totalSize: stats.totalSize,
+          recentUploads: stats.recentUploads,
+          filesByBank,
+          recentFiles: recentFiles.map(file => ({
+            id: file.id,
+            original_name: file.original_name,
+            file_size: file.file_size,
+            file_type: file.file_type,
+            deposant_nom: file.deposant_nom,
+            deposant_banque: file.deposant_banque,
+            created_at: file.created_at,
+            download_count: file.download_count
+          }))
+        }
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Erreur interne du serveur',
+        error: error.message
+      });
+    }
+  }
+
+  // Statistiques complètes pour utilisateurs normaux (leurs envois sans filtre de période)
+  static async getStatsUserComplete(req, res) {
+    try {
+      const banqueDestinataire = req.user.banque || '';
+      
+      if (!banqueDestinataire) {
+        return res.status(400).json({
+          success: false,
+          message: 'Banque non définie pour cet utilisateur'
+        });
+      }
+
+      const stats = await File.getStatsByBankComplete(banqueDestinataire);
+      const recentFiles = await File.getRecentFilesByBank(banqueDestinataire, 5);
+
+      res.json({
+        success: true,
+        data: {
+          totalFiles: stats.totalFiles,
+          totalDownloads: stats.totalDownloads,
+          totalSize: stats.totalSize,
+          recentUploads: stats.recentUploads,
+          recentFiles: recentFiles.map(file => ({
+            id: file.id,
+            original_name: file.original_name,
+            file_size: file.file_size,
+            file_type: file.file_type,
+            deposant_nom: file.deposant_nom,
+            deposant_banque: file.deposant_banque,
+            created_at: file.created_at,
+            download_count: file.download_count
+          }))
+        }
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Erreur interne du serveur',
+        error: error.message
       });
     }
   }

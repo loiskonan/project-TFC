@@ -48,12 +48,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             } else {
               localStorage.removeItem('dataflow_token');
             }
-          } else {
+          } else if (response.status === 401) {
+            // Token invalide ou expiré
             localStorage.removeItem('dataflow_token');
+          } else {
+            // Autre erreur HTTP, ne pas supprimer le token immédiatement
           }
         } catch (error) {
-          console.error('Erreur de vérification du token:', error);
-          localStorage.removeItem('dataflow_token');
+          // En cas d'erreur réseau, ne pas supprimer le token
+          // L'utilisateur peut continuer à utiliser l'app
         }
       }
     };
@@ -79,26 +82,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.user) {
-            console.log('Statut actuel de l\'utilisateur:', data.user.isActive);
             
             // Vérifier en temps réel si le compte est inactif
             if (!data.user.isActive) {
-              console.log('Compte inactif détecté - Affichage du modal');
               setShowDeactivatedModal(true);
             } else {
               // Mettre à jour l'utilisateur si le statut a changé
-              console.log('Mise à jour du statut utilisateur');
               setCurrentUser(data.user);
             }
           }
+        } else if (response.status === 401) {
+          // Token invalide, déconnecter l'utilisateur
+          localStorage.removeItem('dataflow_token');
+          setCurrentUser(null);
         }
       } catch (error) {
-        console.error('Erreur de vérification du statut:', error);
+        // En cas d'erreur réseau, ne pas déconnecter automatiquement
+        // L'utilisateur peut toujours utiliser l'app en mode hors ligne
       }
     };
 
-    // Vérifier toutes les 10 secondes pour une détection plus rapide
-    const interval = setInterval(checkUserStatus, 10000);
+    // Vérifier toutes les 30 secondes pour réduire la charge
+    const interval = setInterval(checkUserStatus, 30000);
     return () => clearInterval(interval);
   }, [currentUser]);
 
@@ -126,7 +131,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw new Error(data.message || 'Erreur de connexion');
       }
     } catch (error) {
-      console.error('Erreur de connexion:', error);
       throw error;
     } finally {
       setIsLoading(false);

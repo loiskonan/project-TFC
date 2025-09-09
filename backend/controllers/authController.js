@@ -90,7 +90,6 @@ class AuthController {
       });
 
     } catch (error) {
-      console.error('Erreur d\'inscription:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -172,7 +171,6 @@ class AuthController {
       });
 
     } catch (error) {
-      console.error('Erreur de connexion:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -219,7 +217,6 @@ class AuthController {
       });
 
     } catch (error) {
-      console.error('Erreur de récupération de mot de passe:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -248,7 +245,6 @@ class AuthController {
       });
 
     } catch (error) {
-      console.error('Erreur de vérification du token:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'
@@ -315,7 +311,6 @@ class AuthController {
         message: 'Mot de passe modifié avec succès'
       });
     } catch (error) {
-      console.error('Erreur lors du changement de mot de passe:', error);
       res.status(500).json({
         success: false,
         message: 'Erreur interne du serveur'

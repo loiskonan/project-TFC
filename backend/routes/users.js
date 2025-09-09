@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const UserController = require('../controllers/userController');
 const { requireAuthAndAdmin } = require('../middleware/auth');
+const { validateCreateUser, validateUpdateProfile } = require('../middleware/validation');
 
 // Toutes les routes nécessitent une authentification et des droits d'administrateur
 router.use(requireAuthAndAdmin);
@@ -16,10 +17,10 @@ router.get('/stats', UserController.getUserStats);
 router.get('/:id', UserController.getUserById);
 
 // Créer un nouvel utilisateur
-router.post('/', UserController.createUser);
+router.post('/', validateCreateUser, UserController.createUser);
 
 // Mettre à jour un utilisateur
-router.put('/:id', UserController.updateUser);
+router.put('/:id', validateUpdateProfile, UserController.updateUser);
 
 // Supprimer un utilisateur
 router.delete('/:id', UserController.deleteUser);

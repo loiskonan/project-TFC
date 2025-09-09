@@ -181,6 +181,42 @@ class Banque {
       });
     });
   }
+
+  static async findAllPaginated(limit, offset) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        SELECT id, nom, code, is_active
+        FROM banques
+        ORDER BY nom ASC
+        LIMIT ? OFFSET ?
+      `;
+      
+      db.query(query, [limit, offset], (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results);
+        }
+      });
+    });
+  }
+
+  static async countAll() {
+    return new Promise((resolve, reject) => {
+      const query = `
+        SELECT COUNT(*) as count
+        FROM banques
+      `;
+      
+      db.query(query, (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results[0].count);
+        }
+      });
+    });
+  }
 }
 
 module.exports = Banque;

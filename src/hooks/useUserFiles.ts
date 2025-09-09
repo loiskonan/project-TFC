@@ -82,22 +82,12 @@ export const useUserFiles = () => {
       });
 
       if (response.data.success) {
-        let filteredFiles = response.data.deposits;
-
-        // Pour les utilisateurs, filtrer par leur banque
-        if (currentUser.role === 'user' && currentUser.banque) {
-          filteredFiles = response.data.deposits.filter((file: UserFile) => 
-            file.deposantBanque === currentUser.banque
-          );
-        }
-
-        setFiles(filteredFiles);
+        setFiles(response.data.deposits);
         setPagination(response.data.pagination);
       } else {
         setError(response.data.message || 'Erreur lors de la récupération des fichiers');
       }
     } catch (error: any) {
-      console.error('Erreur lors de la récupération des fichiers:', error);
       setError(error.response?.data?.message || 'Erreur de connexion au serveur');
     } finally {
       setIsLoading(false);
@@ -160,7 +150,6 @@ export const useUserFiles = () => {
       ));
 
     } catch (error: any) {
-      console.error('Erreur lors du téléchargement:', error);
       alert('Erreur lors du téléchargement du fichier');
     }
   };
@@ -185,7 +174,6 @@ export const useUserFiles = () => {
         alert('Erreur lors de la suppression du fichier');
       }
     } catch (error: any) {
-      console.error('Erreur lors de la suppression:', error);
       alert('Erreur lors de la suppression du fichier');
     }
   };
@@ -215,7 +203,6 @@ export const useUserFiles = () => {
         setBanques(response.data.banques);
       }
     } catch (error: any) {
-      console.error('Erreur lors de la récupération des banques:', error);
     }
   };
 

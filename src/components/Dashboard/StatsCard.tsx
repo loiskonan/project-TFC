@@ -9,7 +9,7 @@ interface StatsCardProps {
     value: number;
     isPositive: boolean;
   };
-  color: 'blue' | 'green' | 'orange' | 'purple';
+  color: 'blue' | 'green' | 'orange' | 'purple' | 'white' | 'white-green';
 }
 
 const StatsCard: React.FC<StatsCardProps> = ({ title, value, icon: Icon, trend, color }) => {
@@ -17,14 +17,18 @@ const StatsCard: React.FC<StatsCardProps> = ({ title, value, icon: Icon, trend, 
     blue: 'bg-primary-blue-lighter text-primary-blue border-primary-blue',
     green: 'bg-green-50 text-green-700 border-green-200',
     orange: 'bg-orange-50 text-orange-700 border-orange-200',
-    purple: 'bg-purple-50 text-purple-700 border-purple-200'
+    purple: 'bg-purple-50 text-purple-700 border-purple-200',
+    white: 'bg-white text-primary-blue border-primary-blue',
+    'white-green': 'bg-white text-green-700 border-green-200'
   };
 
   const iconColorClasses = {
     blue: 'text-blue-600',
     green: 'text-green-600',
     orange: 'text-orange-600',
-    purple: 'text-purple-600'
+    purple: 'text-purple-600',
+    white: 'text-blue-600',
+    'white-green': 'text-green-600'
   };
 
   return (

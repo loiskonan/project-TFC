@@ -147,10 +147,19 @@ const FileList: React.FC = () => {
               {currentUser?.role === 'user' 
                 ? (
                   <>
-                    Mes fichiers - <span style={{ color: 'rgb(215, 153, 14)' }}>{currentUser.banque || 'Banque non assignée'}</span>
+                    Fichiers déposés par tous les agents - <span style={{ color: 'rgb(215, 153, 14)' }}>{currentUser.banque || 'Banque non assignée'}</span>
                   </>
                 )
-                : 'Tous les fichiers'
+                : (
+                  <>
+                    Fichiers reçus
+                    {(currentUser?.role === 'admin' || currentUser?.role === 'nsia_vie') && (
+                      <span className="text-sm font-normal text-gray-500 ml-2">
+                        (Toutes les banques)
+                      </span>
+                    )}
+                  </>
+                )
               }
             </h3>
                           <button

@@ -13,9 +13,8 @@ const pool = mysql.createPool({
 
 pool.getConnection((err, connection) => {
   if (err) {
-    console.error('Erreur de connexion à la base de données :', err.message);
+    // Database connection error
   } else {
-    console.log('Pool connecté à la base de données MySQL (XAMPP)');
     connection.release();
   }
 });
