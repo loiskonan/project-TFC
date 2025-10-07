@@ -17,6 +17,9 @@ class FileSend {
     this.banqueCode = data.banque_code;
     this.status = data.status;
     this.downloadCount = data.download_count;
+    this.productId = data.product_id;
+    this.productName = data.product_name;
+    this.productCode = data.code_produit;
     this.createdAt = data.created_at;
     this.updatedAt = data.updated_at;
     this.sentAt = data.sent_at;
@@ -41,6 +44,7 @@ class FileSend {
         deposantRole,
         banqueDestinataire,
         banqueCode,
+        productId,
         status = 'sent'
       } = fileData;
 
@@ -48,14 +52,14 @@ class FileSend {
         INSERT INTO file_send (
           original_name, file_name, file_path, file_type, file_size, description,
           deposant_id, deposant_nom, deposant_email, deposant_role,
-          banque_destinataire, banque_code, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          banque_destinataire, banque_code, product_id, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const values = [
         originalName, fileName, filePath, fileType, fileSize, description,
         deposantId, deposantNom, deposantEmail, deposantRole,
-        banqueDestinataire, banqueCode, status
+        banqueDestinataire, banqueCode, productId, status
       ];
 
       db.execute(query, values, (err, result) => {
@@ -81,14 +85,14 @@ class FileSend {
 
       // Créer les placeholders pour chaque fichier
       const placeholders = filesData.map(() => 
-        '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       ).join(', ');
 
       const query = `
         INSERT INTO file_send (
           original_name, file_name, file_path, file_type, file_size, description,
           deposant_id, deposant_nom, deposant_email, deposant_role,
-          banque_destinataire, banque_code, status
+          banque_destinataire, banque_code, product_id, status
         ) VALUES ${placeholders}
       `;
 
@@ -106,6 +110,7 @@ class FileSend {
         file.deposantRole,
         file.banqueDestinataire,
         file.banqueCode,
+        file.productId || null,
         file.status || 'sent'
       ]);
 
@@ -202,17 +207,23 @@ class FileSend {
         queryParams.push(status);
       }
 
-      if (fileType) {
-        whereConditions.push('file_type LIKE ?');
-        queryParams.push(`%${fileType}%`);
+      if (options.product && options.product !== 'all') {
+        if (options.product === 'null') {
+          whereConditions.push('fs.product_id IS NULL');
+        } else {
+          whereConditions.push('fs.product_id = ?');
+          queryParams.push(options.product);
+        }
       }
 
       const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
       const query = `
-        SELECT * FROM file_send 
+        SELECT fs.*, bp.product_name, bp.code_produit
+        FROM file_send fs
+        LEFT JOIN banque_products bp ON fs.product_id = bp.id
         ${whereClause}
-        ORDER BY created_at DESC 
+        ORDER BY fs.created_at DESC 
         LIMIT ? OFFSET ?
       `;
 
@@ -263,9 +274,13 @@ class FileSend {
         queryParams.push(status);
       }
 
-      if (fileType) {
-        whereConditions.push('file_type LIKE ?');
-        queryParams.push(`%${fileType}%`);
+      if (options.product && options.product !== 'all') {
+        if (options.product === 'null') {
+          whereConditions.push('product_id IS NULL');
+        } else {
+          whereConditions.push('product_id = ?');
+          queryParams.push(options.product);
+        }
       }
 
       const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';

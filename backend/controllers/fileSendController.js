@@ -2,6 +2,8 @@ const FileSend = require('../models/FileSend');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const emailService = require('../services/emailService');
+const UserNotificationService = require('../services/userNotificationService');
 
 class FileSendController {
   constructor() {
@@ -164,8 +166,20 @@ class FileSendController {
         const {
           description,
           banqueDestinataire,
-          banqueCode
+          banqueCode,
+          file_products
         } = req.body;
+        
+        // Parser les produits si c'est un JSON string
+        let parsedProducts = file_products;
+        if (typeof file_products === 'string') {
+          try {
+            parsedProducts = JSON.parse(file_products);
+          } catch (error) {
+            console.error('Error parsing file_products:', error);
+            parsedProducts = [];
+          }
+        }
 
         // Validation des données
         if (!description || !banqueDestinataire) {
@@ -178,6 +192,20 @@ class FileSendController {
           return res.status(400).json({
             success: false,
             message: 'Description et banque destinataire sont obligatoires'
+          });
+        }
+
+        // Vérifier que tous les fichiers ont un produit associé
+        if (!parsedProducts || !Array.isArray(parsedProducts) || parsedProducts.length !== req.files.length) {
+          // Supprimer tous les fichiers uploadés en cas d'erreur
+          req.files.forEach(file => {
+            if (fs.existsSync(file.path)) {
+              fs.unlinkSync(file.path);
+            }
+          });
+          return res.status(400).json({
+            success: false,
+            message: 'Chaque fichier doit avoir un produit associé'
           });
         }
 
@@ -204,7 +232,7 @@ class FileSendController {
         }
 
         // Préparer les données des fichiers
-        const filesData = req.files.map(file => ({
+        const filesData = req.files.map((file, index) => ({
           originalName: file.originalname,
           fileName: file.filename,
           filePath: file.path,
@@ -217,11 +245,20 @@ class FileSendController {
           deposantRole: req.user.role,
           banqueDestinataire,
           banqueCode: banqueCode || banqueDestinataire,
+          productId: parseInt(parsedProducts[index]),
           status: 'sent'
         }));
 
         // Enregistrer en base de données
         const result = await FileSend.createMultiple(filesData);
+
+        // Envoyer des notifications email aux utilisateurs de la banque destinataire
+        try {
+          await this.sendFileNotifications(result.files, banqueDestinataire, description, req.user);
+        } catch (emailError) {
+          console.error('Erreur lors de l\'envoi des notifications email:', emailError);
+          // Ne pas faire échouer l'upload si l'email échoue
+        }
 
         res.status(201).json({
           success: true,
@@ -235,6 +272,7 @@ class FileSendController {
               fileSize: file.fileSize,
               description: file.description,
               banqueDestinataire: file.banqueDestinataire,
+              productId: file.productId,
               status: file.status,
               createdAt: file.createdAt
             }))
@@ -269,7 +307,8 @@ class FileSendController {
         limit = 10,
         searchTerm = '',
         banqueDestinataire = '',
-        status = ''
+        status = '',
+        product = ''
       } = req.query;
 
       const options = {
@@ -277,7 +316,8 @@ class FileSendController {
         limit: parseInt(limit),
         searchTerm,
         banqueDestinataire,
-        status
+        status,
+        product
       };
 
       const files = await FileSend.findByDeposant(req.user.id, options);
@@ -301,7 +341,13 @@ class FileSendController {
             sentAt: file.sentAt,
             deliveredAt: file.deliveredAt,
             readAt: file.readAt,
-            lastDownloadAt: file.lastDownloadAt
+            lastDownloadAt: file.lastDownloadAt,
+            productId: file.productId,
+            productName: file.productName,
+            productCode: file.productCode,
+            productId: file.productId,
+            productName: file.productName,
+            productCode: file.productCode
           })),
           pagination: {
             currentPage: parseInt(page),
@@ -331,7 +377,8 @@ class FileSendController {
         banqueDestinataire = '',
         deposantRole = '',
         status = '',
-        fileType = ''
+        fileType = '',
+        product = ''
       } = req.query;
 
       const options = {
@@ -341,7 +388,8 @@ class FileSendController {
         banqueDestinataire,
         deposantRole,
         status,
-        fileType
+        fileType,
+        product
       };
 
       const files = await FileSend.findAllPaginated(options);
@@ -368,7 +416,10 @@ class FileSendController {
             sentAt: file.sentAt,
             deliveredAt: file.deliveredAt,
             readAt: file.readAt,
-            lastDownloadAt: file.lastDownloadAt
+            lastDownloadAt: file.lastDownloadAt,
+            productId: file.productId,
+            productName: file.productName,
+            productCode: file.productCode
           })),
           pagination: {
             currentPage: parseInt(page),
@@ -442,7 +493,10 @@ class FileSendController {
             sentAt: file.sentAt,
             deliveredAt: file.deliveredAt,
             readAt: file.readAt,
-            lastDownloadAt: file.lastDownloadAt
+            lastDownloadAt: file.lastDownloadAt,
+            productId: file.productId,
+            productName: file.productName,
+            productCode: file.productCode
           })),
           pagination: {
             currentPage: parseInt(page),
@@ -752,6 +806,77 @@ class FileSendController {
         message: 'Erreur interne du serveur',
         error: error.message
       });
+    }
+  }
+
+  // Envoyer des notifications email pour les nouveaux fichiers
+  async sendFileNotifications(files, banqueDestinataire, description, sender) {
+    try {
+      // Récupérer les emails des utilisateurs de la banque destinataire
+      let recipientEmails = [];
+      let ccEmails = [];
+      
+      if (sender.role === 'user') {
+        // Si c'est un user qui envoie, notifier admin et nsia_vie
+        recipientEmails = await UserNotificationService.getEmailsByRole(['admin', 'nsia_vie']);
+        // En copie : tous les autres users de sa banque
+        ccEmails = await UserNotificationService.getEmailsByBanqueExcludingSender(sender.banque, sender.id);
+      } else {
+        // Si c'est admin/nsia_vie qui envoie, notifier tous les users de la banque destinataire
+        recipientEmails = await UserNotificationService.getEmailsByBanque(banqueDestinataire);
+        // En copie : tous les autres admin et nsia_vie
+        ccEmails = await UserNotificationService.getEmailsByRoleExcludingSender(['admin', 'nsia_vie'], sender.id);
+      }
+
+      if (recipientEmails.length === 0) {
+        console.log(`⚠️ Aucun utilisateur trouvé pour la banque ${banqueDestinataire}`);
+        return;
+      }
+
+      // Récupérer le nom du produit si disponible
+      let productName = null;
+      if (files.length > 0 && files[0].productId) {
+        try {
+          const BanqueProduct = require('../models/BanqueProduct');
+          const product = await BanqueProduct.getProductById(files[0].productId);
+          if (product) {
+            productName = product.product_name;
+          }
+        } catch (error) {
+          console.error('Erreur lors de la récupération du produit:', error);
+        }
+      }
+
+      // Préparer les données pour l'email
+      const fileData = {
+        files: files.map(file => ({
+          originalName: file.originalName,
+          fileSize: file.fileSize
+        })),
+        banqueDestinataire,
+        description,
+        productName
+      };
+
+      const senderInfo = {
+        senderName: sender.name,
+        senderRole: sender.role,
+        senderBanque: sender.banque
+      };
+
+      // Envoyer l'email
+      const emailResult = await emailService.sendFileNotification(recipientEmails, fileData, senderInfo, ccEmails);
+      
+      if (emailResult.success) {
+        const ccMessage = ccEmails.length > 0 ? ` (${ccEmails.length} en copie)` : '';
+        console.log(`✅ Notifications envoyées à ${recipientEmails.length} utilisateur(s) de ${banqueDestinataire}${ccMessage}`);
+      } else {
+        console.error('❌ Échec de l\'envoi des notifications:', emailResult.error);
+      }
+
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'envoi des notifications:', error);
+      throw error;
     }
   }
 }

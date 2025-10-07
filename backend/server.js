@@ -56,11 +56,14 @@ const generalLimiter = rateLimit({
 
 // Rate limiting plus strict pour l'authentification
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 5 * 60 * 1000, // 5 minutes
   max: 15, // 15 tentatives de connexion par IP (5 x 3)
-  message: {
-    success: false,
-    message: 'Trop de tentatives de connexion, veuillez réessayer dans 15 minutes.'
+  message: (req, res) => {
+    const windowMs = 5; // 5 minutes en minutes
+    return {
+      success: false,
+      message: `Trop de tentatives de connexion, veuillez réessayer dans ${windowMs} minutes.`
+    };
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -97,6 +100,8 @@ const systemRoutes = require('./routes/system');
 const fileRoutes = require('./routes/files');
 const userUploadRoutes = require('./routes/userUploads');
 const fileSendRoutes = require('./routes/fileSend');
+const banqueProductRoutes = require('./routes/banqueProducts');
+const userProductRoutes = require('./routes/userProducts');
 
 // Appliquer les rate limiters spécifiques aux routes
 app.use('/api/auth', authLimiter, authRoutes);
@@ -108,6 +113,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/banques', banqueRoutes);
 app.use('/api/system', systemRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/api/banque-products', banqueProductRoutes);
+app.use('/api/user-products', userProductRoutes);
 
 // Test route
 app.get('/', (req, res) => {

@@ -6,8 +6,8 @@ class File {
   static async create(fileData) {
     return new Promise((resolve, reject) => {
       const query = `
-        INSERT INTO files (name, original_name, description, deposant_nom, deposant_email, deposant_banque, file_path, file_size, file_type, uploaded_by, is_public) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO files (name, original_name, description, deposant_nom, deposant_email, deposant_banque, file_path, file_size, file_type, uploaded_by, is_public, product_id) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       const values = [
         fileData.name,
@@ -20,7 +20,8 @@ class File {
         fileData.fileSize,
         fileData.fileType,
         fileData.uploadedBy,
-        fileData.isPublic || false
+        fileData.isPublic || false,
+        fileData.productId || null
       ];
       
       db.query(query, values, (err, result) => {
@@ -36,9 +37,11 @@ class File {
   static async findById(id) {
     return new Promise((resolve, reject) => {
       const query = `
-        SELECT f.*, u.name as uploaded_by_name, u.banque as uploaded_by_banque
+        SELECT f.*, u.name as uploaded_by_name, u.banque as uploaded_by_banque,
+               bp.product_name, bp.code_produit
         FROM files f
         LEFT JOIN users u ON f.uploaded_by = u.id
+        LEFT JOIN banque_products bp ON f.product_id = bp.id
         WHERE f.id = ?
       `;
       db.query(query, [id], (err, results) => {
@@ -54,9 +57,11 @@ class File {
   static async findByUser(userId) {
     return new Promise((resolve, reject) => {
       const query = `
-        SELECT f.*, u.name as uploaded_by_name, u.banque as uploaded_by_banque
+        SELECT f.*, u.name as uploaded_by_name, u.banque as uploaded_by_banque,
+               bp.product_name, bp.code_produit
         FROM files f
         LEFT JOIN users u ON f.uploaded_by = u.id
+        LEFT JOIN banque_products bp ON f.product_id = bp.id
         WHERE f.uploaded_by = ?
         ORDER BY f.uploaded_at DESC
       `;
@@ -73,9 +78,11 @@ class File {
   static async findAll() {
     return new Promise((resolve, reject) => {
       const query = `
-        SELECT f.*, u.name as uploaded_by_name, u.banque as uploaded_by_banque
+        SELECT f.*, u.name as uploaded_by_name, u.banque as uploaded_by_banque,
+               bp.product_name, bp.code_produit
         FROM files f
         LEFT JOIN users u ON f.uploaded_by = u.id
+        LEFT JOIN banque_products bp ON f.product_id = bp.id
         ORDER BY f.uploaded_at DESC
       `;
       db.query(query, (err, results) => {
@@ -177,19 +184,21 @@ class File {
         queryParams.push(searchPattern, searchPattern);
       }
       
-      // Filtre par type de fichier
-      if (filters.fileType && filters.fileType !== 'all') {
-        whereConditions.push('f.file_type LIKE ?');
-        queryParams.push(`%${filters.fileType}%`);
+      // Filtre par produit
+      if (filters.product && filters.product !== 'all') {
+        whereConditions.push('f.product_id = ?');
+        queryParams.push(filters.product);
       }
       
       const whereClause = whereConditions.join(' AND ');
       
       // Requête pour récupérer les fichiers avec pagination et filtres
       const query = `
-        SELECT f.*, u.name as uploaded_by_name, u.banque as uploaded_by_banque
+        SELECT f.*, u.name as uploaded_by_name, u.banque as uploaded_by_banque,
+               bp.product_name, bp.code_produit
         FROM files f
         LEFT JOIN users u ON f.uploaded_by = u.id
+        LEFT JOIN banque_products bp ON f.product_id = bp.id
         WHERE ${whereClause}
         ORDER BY f.uploaded_at DESC
         LIMIT ? OFFSET ?
@@ -250,19 +259,21 @@ class File {
         queryParams.push(searchPattern, searchPattern);
       }
       
-      // Filtre par type de fichier
-      if (filters.fileType && filters.fileType !== 'all') {
-        whereConditions.push('f.file_type LIKE ?');
-        queryParams.push(`%${filters.fileType}%`);
+      // Filtre par produit
+      if (filters.product && filters.product !== 'all') {
+        whereConditions.push('f.product_id = ?');
+        queryParams.push(filters.product);
       }
       
       const whereClause = whereConditions.join(' AND ');
       
       // Requête pour récupérer les fichiers avec pagination et filtres
       const query = `
-        SELECT f.*, u.name as uploaded_by_name, u.banque as uploaded_by_banque
+        SELECT f.*, u.name as uploaded_by_name, u.banque as uploaded_by_banque,
+               bp.product_name, bp.code_produit
         FROM files f
         LEFT JOIN users u ON f.uploaded_by = u.id
+        LEFT JOIN banque_products bp ON f.product_id = bp.id
         WHERE ${whereClause}
         ORDER BY f.uploaded_at DESC
         LIMIT ? OFFSET ?
@@ -322,10 +333,10 @@ class File {
         queryParams.push(searchPattern, searchPattern);
       }
       
-      // Filtre par type de fichier
-      if (filters.fileType && filters.fileType !== 'all') {
-        whereConditions.push('f.file_type LIKE ?');
-        queryParams.push(`%${filters.fileType}%`);
+      // Filtre par produit
+      if (filters.product && filters.product !== 'all') {
+        whereConditions.push('f.product_id = ?');
+        queryParams.push(filters.product);
       }
       
       // Filtre par banque (pour les admins/nsia_vie)
@@ -334,13 +345,21 @@ class File {
         queryParams.push(filters.banque);
       }
       
+      // Filtre par produit
+      if (filters.product && filters.product !== 'all') {
+        whereConditions.push('f.product_id = ?');
+        queryParams.push(filters.product);
+      }
+      
       const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
       
       // Requête pour récupérer les fichiers avec pagination et filtres
       const query = `
-        SELECT f.*, u.name as uploaded_by_name, u.banque as uploaded_by_banque
+        SELECT f.*, u.name as uploaded_by_name, u.banque as uploaded_by_banque,
+               bp.product_name, bp.code_produit
         FROM files f
         LEFT JOIN users u ON f.uploaded_by = u.id
+        LEFT JOIN banque_products bp ON f.product_id = bp.id
         ${whereClause}
         ORDER BY f.uploaded_at DESC
         LIMIT ? OFFSET ?

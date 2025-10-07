@@ -3,6 +3,8 @@ const Banque = require('../models/Banque');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const emailService = require('../services/emailService');
+const UserNotificationService = require('../services/userNotificationService');
 
 // Configuration de multer pour l'upload de fichiers
 const storage = multer.diskStorage({
@@ -209,8 +211,19 @@ class UserUploadController {
           });
         }
 
-        // Récupérer la description après le traitement multer
-        const { description } = req.body;
+        // Récupérer la description et les produits après le traitement multer
+        const { description, file_products } = req.body;
+        
+        // Parser les produits si c'est un JSON string
+        let parsedProducts = file_products;
+        if (typeof file_products === 'string') {
+          try {
+            parsedProducts = JSON.parse(file_products);
+          } catch (error) {
+            console.error('Error parsing file_products:', error);
+            parsedProducts = [];
+          }
+        }
         
         if (!description || description.trim().length === 0) {
           // Supprimer tous les fichiers uploadés
@@ -223,6 +236,21 @@ class UserUploadController {
           return res.status(400).json({
             success: false,
             message: 'La description est obligatoire'
+          });
+        }
+
+        // Vérifier que tous les fichiers ont un produit associé
+        if (!parsedProducts || !Array.isArray(parsedProducts) || parsedProducts.length !== req.files.length) {
+          // Supprimer tous les fichiers uploadés
+          req.files.forEach(file => {
+            if (fs.existsSync(file.path)) {
+              fs.unlinkSync(file.path);
+            }
+          });
+          
+          return res.status(400).json({
+            success: false,
+            message: 'Chaque fichier doit avoir un produit associé'
           });
         }
 
@@ -340,7 +368,10 @@ class UserUploadController {
             }
 
             try {
-              for (const file of req.files) {
+              for (let i = 0; i < req.files.length; i++) {
+                const file = req.files[i];
+                const productId = parseInt(parsedProducts[i]);
+                
                 const fileData = {
                   name: file.filename,
                   originalName: file.originalname,
@@ -352,7 +383,8 @@ class UserUploadController {
                   fileSize: file.size,
                   fileType: file.mimetype,
                   uploadedBy: req.user.id,
-                  isPublic: false
+                  isPublic: false,
+                  productId: productId
                 };
 
                 const fileId = await File.create(fileData);
@@ -368,12 +400,13 @@ class UserUploadController {
                   deposantBanque: newFile.deposant_banque,
                   fileSize: newFile.file_size,
                   fileType: newFile.file_type,
-                  uploadedAt: newFile.uploaded_at
+                  uploadedAt: newFile.uploaded_at,
+                  productId: newFile.product_id
                 });
               }
 
               // Valider la transaction
-              connection.commit((err) => {
+              connection.commit(async (err) => {
                 if (err) {
                   return connection.rollback(() => {
                     connection.release();
@@ -392,6 +425,15 @@ class UserUploadController {
                 }
 
                 connection.release();
+                
+                // Envoyer des notifications email aux autres utilisateurs de la banque
+                try {
+                  await UserUploadController.sendFileNotifications(uploadedFiles, req.user.banque, description, req.user);
+                } catch (emailError) {
+                  console.error('Erreur lors de l\'envoi des notifications email:', emailError);
+                  // Ne pas faire échouer l'upload si l'email échoue
+                }
+                
                 res.status(201).json({
                   success: true,
                   message: `Tous les fichiers (${uploadedFiles.length}) ont été déposés avec succès`,
@@ -455,7 +497,8 @@ class UserUploadController {
       const filters = {
         searchTerm: req.query.search || '',
         fileType: req.query.fileType || 'all',
-        banque: req.user.banque // Filtrer par banque de l'utilisateur
+        banque: req.user.banque, // Filtrer par banque de l'utilisateur
+        product: req.query.product || 'all'
       };
       
       const result = await File.findByBanquePaginated(req.user.banque, page, limit, filters);
@@ -473,7 +516,10 @@ class UserUploadController {
           fileSize: file.file_size,
           fileType: file.file_type,
           downloadCount: file.download_count,
-          uploadedAt: file.uploaded_at
+          uploadedAt: file.uploaded_at,
+          productId: file.product_id,
+          productName: file.product_name,
+          productCode: file.code_produit
         })),
         pagination: result.pagination
       });
@@ -503,7 +549,8 @@ class UserUploadController {
       const filters = {
         searchTerm: req.query.search || '',
         fileType: req.query.fileType || 'all',
-        banque: req.query.banque || 'all'
+        banque: req.query.banque || 'all',
+        product: req.query.product || 'all'
       };
       
       const result = await File.findAllPaginated(page, limit, filters);
@@ -522,7 +569,10 @@ class UserUploadController {
           fileType: file.file_type,
           downloadCount: file.download_count,
           uploadedAt: file.uploaded_at,
-          uploadedByName: file.uploaded_by_name
+          uploadedByName: file.uploaded_by_name,
+          productId: file.product_id,
+          productName: file.product_name,
+          productCode: file.code_produit
         })),
         pagination: result.pagination
       });
@@ -732,6 +782,66 @@ class UserUploadController {
         message: 'Erreur interne du serveur',
         error: error.message
       });
+    }
+  }
+
+  // Envoyer des notifications email pour les nouveaux fichiers déposés
+  static async sendFileNotifications(files, banqueDestinataire, description, sender) {
+    try {
+      // Récupérer les emails des admin et nsia_vie (pour être notifiés des dépôts des users)
+      const recipientEmails = await UserNotificationService.getEmailsByRole(['admin', 'nsia_vie']);
+      // En copie : tous les autres users de sa banque
+      const ccEmails = await UserNotificationService.getEmailsByBanqueExcludingSender(sender.banque, sender.id);
+
+      if (recipientEmails.length === 0) {
+        console.log(`⚠️ Aucun admin ou NSIA Vie trouvé pour recevoir les notifications`);
+        return;
+      }
+
+      // Récupérer le nom du produit si disponible
+      let productName = null;
+      if (files.length > 0 && files[0].productId) {
+        try {
+          const BanqueProduct = require('../models/BanqueProduct');
+          const product = await BanqueProduct.getProductById(files[0].productId);
+          if (product) {
+            productName = product.product_name;
+          }
+        } catch (error) {
+          console.error('Erreur lors de la récupération du produit:', error);
+        }
+      }
+
+      // Préparer les données pour l'email
+      const fileData = {
+        files: files.map(file => ({
+          originalName: file.originalName,
+          fileSize: file.fileSize
+        })),
+        banqueDestinataire,
+        description,
+        productName
+      };
+
+      const senderInfo = {
+        senderName: sender.name,
+        senderRole: sender.role,
+        senderBanque: sender.banque
+      };
+
+      // Envoyer l'email
+      const emailResult = await emailService.sendFileNotification(recipientEmails, fileData, senderInfo, ccEmails);
+      
+      if (emailResult.success) {
+        const ccMessage = ccEmails.length > 0 ? ` (${ccEmails.length} en copie)` : '';
+        console.log(`✅ Notifications envoyées à ${recipientEmails.length} admin/NSIA Vie${ccMessage}`);
+      } else {
+        console.error('❌ Échec de l\'envoi des notifications:', emailResult.error);
+      }
+
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'envoi des notifications:', error);
+      throw error;
     }
   }
 }
