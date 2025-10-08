@@ -10,3 +10,4 @@ router.use(authenticateToken);
 router.get('/banques/:banqueName/products', BanqueProductController.getProductsByBanqueName);
 
 module.exports = router;
+

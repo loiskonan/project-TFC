@@ -4,17 +4,11 @@ import {
   X, 
   CheckCircle, 
   AlertCircle,
-  FileText,
-  Image,
-  FileVideo,
-  FileAudio,
-  Database,
-  Archive,
-  FileSpreadsheet,
-  FileCode,
   Building2
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { banqueProductService } from '../../services/productService';
+import { BanqueProduct } from '../../types/product';
 import axios from 'axios';
 
 // Liste des mois
@@ -49,12 +43,24 @@ const FileUpload: React.FC = () => {
   const [selectedBanque, setSelectedBanque] = useState<number | null>(null);
   const [loadingBanques, setLoadingBanques] = useState(false);
 
+  // États pour la gestion des produits
+  const [products, setProducts] = useState<BanqueProduct[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [fileProducts, setFileProducts] = useState<{[key: string]: number}>({});
+
   // Récupérer la liste des banques pour les admins et nsia_vie
   useEffect(() => {
     if (currentUser?.role === 'admin' || currentUser?.role === 'nsia_vie') {
       fetchBanques();
     }
   }, [currentUser?.role]);
+
+  // Récupérer les produits de la banque de l'utilisateur connecté
+  useEffect(() => {
+    if (currentUser?.banque) {
+      fetchProductsForUserBanque();
+    }
+  }, [currentUser?.banque]);
 
   const fetchBanques = async () => {
     setLoadingBanques(true);
@@ -75,13 +81,50 @@ const FileUpload: React.FC = () => {
     }
   };
 
-  const handleBanqueSelect = (banqueId: number) => {
+  const fetchProductsForUserBanque = async () => {
+    if (!currentUser?.banque) return;
+    
+    setLoadingProducts(true);
+    try {
+      const productsData = await banqueProductService.getProductsByBanqueName(currentUser.banque);
+      setProducts(productsData);
+    } catch (error) {
+      console.error('Erreur lors du chargement des produits:', error);
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  const handleBanqueSelect = async (banqueId: number) => {
     setSelectedBanque(banqueId);
     // Réinitialiser les autres états quand on change de banque
     setUploadQueue([]);
     setUploadStatus({});
+    setFileProducts({});
     setError('');
     setSuccess('');
+    
+    // Récupérer les produits de la banque sélectionnée
+    const banque = banques.find(b => b.id === banqueId);
+    if (banque) {
+      setLoadingProducts(true);
+      try {
+        const productsData = await banqueProductService.getProductsByBanqueName(banque.nom);
+        setProducts(productsData);
+      } catch (error) {
+        console.error('Erreur lors du chargement des produits:', error);
+        setProducts([]);
+      } finally {
+        setLoadingProducts(false);
+      }
+    }
+  };
+
+  const handleProductSelect = (fileKey: string, productId: number) => {
+    setFileProducts(prev => ({
+      ...prev,
+      [fileKey]: productId
+    }));
   };
 
   const handleDrag = useCallback((e: React.DragEvent) => {
@@ -124,6 +167,12 @@ const FileUpload: React.FC = () => {
           delete newStatus[fileKey];
           return newStatus;
         });
+        // Nettoyer aussi la sélection de produit
+        setFileProducts(prevProducts => {
+          const newProducts = { ...prevProducts };
+          delete newProducts[fileKey];
+          return newProducts;
+        });
       }
       return newQueue;
     });
@@ -151,6 +200,17 @@ const FileUpload: React.FC = () => {
       return;
     }
 
+    // Vérifier que tous les fichiers ont un produit sélectionné
+    const missingProducts = uploadQueue.filter(file => {
+      const fileKey = `${file.name}-${file.size}`;
+      return !fileProducts[fileKey];
+    });
+
+    if (missingProducts.length > 0) {
+      setError(`Veuillez sélectionner un produit pour tous les fichiers. Fichiers sans produit : ${missingProducts.map(f => f.name).join(', ')}`);
+      return;
+    }
+
     const description = generateDescription();
 
     setIsLoading(true);
@@ -159,10 +219,19 @@ const FileUpload: React.FC = () => {
       const token = localStorage.getItem('dataflow_token');
       const formData = new FormData();
       
-      // Ajouter tous les fichiers
+      // Ajouter tous les fichiers avec leurs produits associés
       uploadQueue.forEach(file => {
+        const fileKey = `${file.name}-${file.size}`;
+        const productId = fileProducts[fileKey];
         formData.append('files', file);
       });
+      
+      // Ajouter les produits comme un JSON string
+      const productsArray = uploadQueue.map(file => {
+        const fileKey = `${file.name}-${file.size}`;
+        return fileProducts[fileKey];
+      });
+      formData.append('file_products', JSON.stringify(productsArray));
       
       // Ajouter la description
       formData.append('description', description);
@@ -207,13 +276,14 @@ const FileUpload: React.FC = () => {
         });
 
         setSuccess(response.data.message);
-        
-        // Nettoyer la queue après 2 secondes
-        setTimeout(() => {
-          setUploadQueue([]);
-          setUploadStatus({});
+    
+    // Nettoyer la queue après 2 secondes
+    setTimeout(() => {
+      setUploadQueue([]);
+      setUploadStatus({});
+          setFileProducts({});
           clearBatchDescription();
-        }, 2000);
+    }, 2000);
       }
     } catch (error: any) {
       
@@ -478,37 +548,72 @@ const FileUpload: React.FC = () => {
                       {uploadQueue.map((file, index) => {
                         const fileKey = `${file.name}-${file.size}`;
                         const status = uploadStatus[fileKey];
+                        const selectedProductId = fileProducts[fileKey];
                         
                         return (
-                          <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <div className="flex items-center space-x-3">
-                              <div className="flex items-center">
-                                {status === 'uploading' && (
-                                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                                )}
-                                {status === 'success' && (
-                                  <CheckCircle className="h-5 w-5 text-green-600" />
-                                )}
-                                {status === 'error' && (
-                                  <AlertCircle className="h-5 w-5 text-red-600" />
-                                )}
-                                {!status && (
-                                  <div className="h-5 w-5 rounded-full bg-gray-300"></div>
-                                )}
+                          <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center space-x-3">
+                                <div className="flex items-center">
+                                  {status === 'uploading' && (
+                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                                  )}
+                                  {status === 'success' && (
+                                    <CheckCircle className="h-5 w-5 text-green-600" />
+                                  )}
+                                  {status === 'error' && (
+                                    <AlertCircle className="h-5 w-5 text-red-600" />
+                                  )}
+                                  {!status && (
+                                    <div className="h-5 w-5 rounded-full bg-gray-300"></div>
+                                  )}
+                                </div>
+                                <div>
+                                  <p className="font-medium text-gray-900">{file.name}</p>
+                                  <p className="text-sm text-gray-500">{formatFileSize(file.size)}</p>
+                                </div>
                               </div>
-                              <div>
-                                <p className="font-medium text-gray-900">{file.name}</p>
-                                <p className="text-sm text-gray-500">{formatFileSize(file.size)}</p>
-                              </div>
+                              
+                              <button
+                                onClick={() => removeFromQueue(index)}
+                                className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                                title="Retirer le fichier"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
                             </div>
                             
-                            <button
-                              onClick={() => removeFromQueue(index)}
-                              className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                              title="Retirer le fichier"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
+                            {/* Sélection de produit pour ce fichier */}
+                            <div className="mt-3">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Sélectionner un produit *
+                              </label>
+                              {loadingProducts ? (
+                                <div className="flex items-center space-x-2">
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                                  <span className="text-sm text-gray-500">Chargement des produits...</span>
+                                </div>
+                              ) : (
+                                <select
+                                  value={selectedProductId || ''}
+                                  onChange={(e) => handleProductSelect(fileKey, parseInt(e.target.value))}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  required
+                                >
+                                  <option value="">Choisir un produit</option>
+                                  {products.map((product) => (
+                                    <option key={product.id} value={product.id}>
+                                      {product.product_name} ({product.code_produit})
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+                              {selectedProductId && (
+                                <p className="text-xs text-green-600 mt-1">
+                                  ✓ Produit sélectionné
+                                </p>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
@@ -614,13 +719,13 @@ const FileUpload: React.FC = () => {
               >
                 Effacer tout
               </button>
-              <button
-                onClick={processUploads}
-                disabled={isLoading}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isLoading ? 'Upload en cours...' : 'Uploader tous'}
-              </button>
+            <button
+              onClick={processUploads}
+              disabled={isLoading}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isLoading ? 'Upload en cours...' : 'Uploader tous'}
+            </button>
             </div>
           </div>
 
@@ -684,9 +789,11 @@ const FileUpload: React.FC = () => {
             {uploadQueue.map((file, index) => {
               const fileKey = `${file.name}-${file.size}`;
               const status = uploadStatus[fileKey];
+              const selectedProductId = fileProducts[fileKey];
               
               return (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center space-x-3">
                     <div className="flex items-center">
                       {status === 'uploading' && (
@@ -708,13 +815,46 @@ const FileUpload: React.FC = () => {
                     </div>
                   </div>
                   
-                  <button
-                    onClick={() => removeFromQueue(index)}
-                    className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                    title="Retirer le fichier"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+                    <button
+                      onClick={() => removeFromQueue(index)}
+                      className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                      title="Retirer le fichier"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  
+                  {/* Sélection de produit pour ce fichier */}
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Sélectionner un produit *
+                    </label>
+                    {loadingProducts ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                        <span className="text-sm text-gray-500">Chargement des produits...</span>
+                      </div>
+                    ) : (
+                      <select
+                        value={selectedProductId || ''}
+                        onChange={(e) => handleProductSelect(fileKey, parseInt(e.target.value))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      >
+                        <option value="">Choisir un produit</option>
+                        {products.map((product) => (
+                          <option key={product.id} value={product.id}>
+                            {product.product_name} ({product.code_produit})
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {selectedProductId && (
+                      <p className="text-xs text-green-600 mt-1">
+                        ✓ Produit sélectionné
+                      </p>
+                    )}
+                  </div>
                 </div>
               );
             })}

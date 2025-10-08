@@ -9,7 +9,8 @@ import {
   Users, 
   Settings,
   FileText,
-  Key
+  Key,
+  Package
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -35,10 +36,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
       label: currentUser?.role === 'user' ? 'Fichiers reçus' : 'Fichiers envoyés', 
       icon: Download 
     },
-    { id: 'upload', label: 'Upload', icon: Upload },
+    { id: 'upload', label: 'Transmission de fichiers', icon: Upload },
     { id: 'reports', label: 'Rapports', icon: BarChart3 },
     { id: 'settings', label: 'Paramètres', icon: Settings },
-    ...(isAdmin || isNsiaVie ? [
+    ...(isAdmin ? [
+      { id: 'users', label: 'Utilisateurs', icon: Users },
+      { id: 'bank-passwords', label: 'Mots de passe banques', icon: Key },
+      { id: 'products', label: 'Gestion des produits', icon: Package }
+    ] : isNsiaVie ? [
       { id: 'users', label: 'Utilisateurs', icon: Users },
       { id: 'bank-passwords', label: 'Mots de passe banques', icon: Key }
     ] : [])

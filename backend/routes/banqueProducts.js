@@ -21,3 +21,4 @@ router.get('/categories', BanqueProductController.getCategories);
 
 module.exports = router;
 
+

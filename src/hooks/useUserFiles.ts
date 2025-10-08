@@ -15,6 +15,9 @@ export interface UserFile {
   downloadCount: number;
   uploadedAt: string;
   uploadedByName?: string;
+  productId?: number;
+  productName?: string;
+  productCode?: string;
 }
 
 export interface PaginationInfo {
@@ -36,7 +39,8 @@ export const useUserFiles = () => {
   const [filters, setFilters] = useState({
     searchTerm: '',
     fileType: 'all',
-    banque: 'all'
+    banque: 'all',
+    product: 'all'
   });
 
   const fetchUserFiles = async (page: number = 1) => {
@@ -54,7 +58,8 @@ export const useUserFiles = () => {
       const queryParams = new URLSearchParams({
         page: page.toString(),
         search: filters.searchTerm,
-        fileType: filters.fileType
+        fileType: filters.fileType,
+        product: filters.product
       });
       
       // Ajouter le filtre banque pour les admins/nsia_vie

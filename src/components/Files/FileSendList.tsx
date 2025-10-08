@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
+import { banqueProductService } from '../../services/productService';
+import { BanqueProduct } from '../../types/product';
 
 interface FileSendItem {
   id: number;
@@ -43,6 +45,9 @@ interface FileSendItem {
   deliveredAt?: string;
   readAt?: string;
   lastDownloadAt?: string;
+  productId?: number;
+  productName?: string;
+  productCode?: string;
 }
 
 interface PaginationInfo {
@@ -75,10 +80,12 @@ const FileSendList: React.FC<FileSendListProps> = ({ title, showDeposantInfo = f
     banqueDestinataire: '',
     deposantRole: '',
     status: '',
-    fileType: ''
+    product: ''
   });
 
   const [banques, setBanques] = useState<Array<{name: string, code: string}>>([]);
+  const [products, setProducts] = useState<BanqueProduct[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
 
   // Charger les fichiers
   const fetchFiles = async () => {
@@ -144,6 +151,36 @@ const FileSendList: React.FC<FileSendListProps> = ({ title, showDeposantInfo = f
       }
     } catch (error) {
     }
+  };
+
+  // Charger les produits d'une banque
+  const loadProductsForBanque = async (banqueName: string) => {
+    try {
+      setLoadingProducts(true);
+      const productsData = await banqueProductService.getProductsByBanqueName(banqueName);
+      setProducts(productsData);
+    } catch (error) {
+      console.error('Erreur lors du chargement des produits:', error);
+      setProducts([]);
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  // Gestionnaire de changement de banque
+  const handleBanqueChange = (value: string) => {
+    setFilters(prev => ({ ...prev, banqueDestinataire: value, product: '' }));
+    // Charger les produits de la banque sélectionnée
+    if (value && value !== '') {
+      loadProductsForBanque(value);
+    } else {
+      setProducts([]);
+    }
+  };
+
+  // Gestionnaire de changement de produit
+  const handleProductChange = (value: string) => {
+    setFilters(prev => ({ ...prev, product: value }));
   };
 
   // Télécharger un fichier
@@ -246,7 +283,7 @@ const FileSendList: React.FC<FileSendListProps> = ({ title, showDeposantInfo = f
       banqueDestinataire: '',
       deposantRole: '',
       status: '',
-      fileType: ''
+      product: ''
     });
     setPagination(prev => ({ ...prev, currentPage: 1 }));
   };
@@ -257,7 +294,12 @@ const FileSendList: React.FC<FileSendListProps> = ({ title, showDeposantInfo = f
     if (showDeposantInfo) {
       fetchBanques(); // Charger les banques seulement pour admin/nsia_vie
     }
-  }, [pagination.currentPage, filters]);
+    
+    // Charger automatiquement les produits de la banque de l'utilisateur 'user'
+    if (currentUser?.role === 'user' && currentUser?.banque) {
+      loadProductsForBanque(currentUser.banque);
+    }
+  }, [pagination.currentPage, filters, currentUser?.role, currentUser?.banque]);
 
   return (
     <div className="space-y-6">
@@ -309,7 +351,7 @@ const FileSendList: React.FC<FileSendListProps> = ({ title, showDeposantInfo = f
               </label>
               <select
                 value={filters.banqueDestinataire}
-                onChange={(e) => updateFilters({ banqueDestinataire: e.target.value })}
+                onChange={(e) => handleBanqueChange(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Toutes les banques</option>
@@ -352,9 +394,28 @@ const FileSendList: React.FC<FileSendListProps> = ({ title, showDeposantInfo = f
             >
               <option value="">Tous les statuts</option>
               <option value="sent">Envoyé</option>
-              <option value="delivered">Livré</option>
-              <option value="read">Lu</option>
               <option value="downloaded">Téléchargé</option>
+            </select>
+          </div>
+
+          {/* Produit */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Produit
+            </label>
+            <select
+              value={filters.product}
+              onChange={(e) => handleProductChange(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={loadingProducts}
+            >
+              <option value="">Tous les produits</option>
+              <option value="null">Sans produit (Fichiers anciens)</option>
+              {products.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.product_name} ({product.code_produit})
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -423,6 +484,9 @@ const FileSendList: React.FC<FileSendListProps> = ({ title, showDeposantInfo = f
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Description
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Produit
+                    </th>
                     {showDeposantInfo && (
                       <>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -468,6 +532,19 @@ const FileSendList: React.FC<FileSendListProps> = ({ title, showDeposantInfo = f
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-900">{file.description}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        {file.productName ? (
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">{file.productName}</div>
+                            <div className="text-xs text-gray-500 font-mono">{file.productCode}</div>
+                          </div>
+                        ) : (
+                          <div className="text-center">
+                            <span className="text-sm text-gray-400 italic">Aucun produit</span>
+                            <div className="text-xs text-gray-300 mt-1">(Fichier ancien)</div>
+                          </div>
+                        )}
                       </td>
                       {showDeposantInfo && (
                         <>

@@ -45,3 +45,4 @@ FROM banque_products bp
 JOIN banques b ON bp.banque_id = b.id
 ORDER BY b.nom, bp.product_name;
 
+

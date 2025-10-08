@@ -53,3 +53,4 @@ Un script de test sera disponible pour vérifier la configuration email.
 - ✅ Informations détaillées sur les fichiers envoyés
 - ✅ Notifications différenciées selon le rôle de l'expéditeur
 - ✅ Gestion des erreurs sans impact sur l'upload
+

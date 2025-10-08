@@ -7,10 +7,10 @@ import Dashboard from './components/Dashboard/Dashboard';
 import FileUpload from './components/Files/FileUpload';
 import FileList from './components/Files/FileList';
 import FileManagement from './components/Files/FileManagement';
-import UserReports from './components/Reports/UserReports';
 import Reports from './components/Reports/Reports';
 import UserManagement from './components/Admin/UserManagement';
 import BankPasswords from './components/Admin/BankPasswords';
+import ProductManagement from './components/Admin/ProductManagement';
 import Settings from './components/Settings/Settings';
 
 const AppContent: React.FC = () => {
@@ -37,6 +37,8 @@ const AppContent: React.FC = () => {
         return currentUser.role === 'admin' ? <UserManagement /> : <Dashboard />;
       case 'bank-passwords':
         return (currentUser.role === 'admin' || currentUser.role === 'nsia_vie') ? <BankPasswords /> : <Dashboard />;
+      case 'products':
+        return currentUser.role === 'admin' ? <ProductManagement /> : <Dashboard />;
       case 'settings':
         return <Settings />;
       default:

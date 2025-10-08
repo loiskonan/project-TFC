@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Download, 
   Search, 
@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { useUserFiles, UserFile } from '../../hooks/useUserFiles';
 import { useAuth } from '../../contexts/AuthContext';
+import { banqueProductService } from '../../services/productService';
+import { BanqueProduct } from '../../types/product';
 
 const FileList: React.FC = () => {
   const { currentUser } = useAuth();
@@ -33,6 +35,8 @@ const FileList: React.FC = () => {
     refreshFiles 
   } = useUserFiles();
   const [currentPage, setCurrentPage] = useState(1);
+  const [products, setProducts] = useState<BanqueProduct[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -52,13 +56,43 @@ const FileList: React.FC = () => {
   };
 
   const handleBanqueChange = (value: string) => {
-    updateFilters({ banque: value });
+    updateFilters({ banque: value, product: 'all' });
+    // Charger les produits de la banque sélectionnée
+    if (value && value !== 'all') {
+      loadProductsForBanque(value);
+    } else {
+      setProducts([]);
+    }
+  };
+
+  const loadProductsForBanque = async (banqueName: string) => {
+    try {
+      setLoadingProducts(true);
+      const productsData = await banqueProductService.getProductsByBanqueName(banqueName);
+      setProducts(productsData);
+    } catch (error) {
+      console.error('Erreur lors du chargement des produits:', error);
+      setProducts([]);
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  const handleProductChange = (value: string) => {
+    updateFilters({ product: value });
   };
 
   const handleApplyFilters = () => {
     setCurrentPage(1); // Retourner à la première page
     applyFilters();
   };
+
+  // Charger automatiquement les produits de la banque de l'utilisateur 'user'
+  useEffect(() => {
+    if (currentUser?.role === 'user' && currentUser?.banque) {
+      loadProductsForBanque(currentUser.banque);
+    }
+  }, [currentUser?.role, currentUser?.banque]);
 
   // Les fichiers sont déjà filtrés côté serveur
   const filteredFiles = files;
@@ -187,20 +221,17 @@ const FileList: React.FC = () => {
             <div className="relative">
               <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <select
-                value={filters.fileType}
-                onChange={(e) => handleFilterTypeChange(e.target.value)}
+                value={filters.product}
+                onChange={(e) => handleProductChange(e.target.value)}
                 className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={loadingProducts}
               >
-                <option value="all">Tous les types</option>
-                <option value="image">Images</option>
-                <option value="pdf">PDF</option>
-                <option value="excel">Excel</option>
-                <option value="word">Word</option>
-                <option value="video">Vidéos</option>
-                <option value="audio">Audio</option>
-                <option value="sql">SQL</option>
-                <option value="archive">Archives</option>
-                <option value="code">Code</option>
+                <option value="all">Tous les produits</option>
+                {products.map((product) => (
+                  <option key={product.id} value={product.id}>
+                    {product.product_name} ({product.code_produit})
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -250,6 +281,7 @@ const FileList: React.FC = () => {
               <tr className="border-b border-gray-200">
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Fichier</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Description</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Produit</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Déposant</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Taille</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Uploadé le</th>
@@ -275,6 +307,16 @@ const FileList: React.FC = () => {
                         {file.description}
                       </p>
                     </div>
+                  </td>
+                  <td className="py-4 px-4">
+                    {file.productName ? (
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{file.productName}</p>
+                        <p className="text-xs text-gray-500 font-mono">{file.productCode}</p>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-400 italic">Non spécifié</span>
+                    )}
                   </td>
                   <td className="py-4 px-4">
                     <div>
