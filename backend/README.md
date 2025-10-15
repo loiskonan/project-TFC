@@ -23,14 +23,13 @@ DB_NAME=dataflow
 DB_PORT=3306
 
 # Configuration JWT
-JWT_SECRET=dataflow-super-secret-key-2024
-
+JWT_SECRET=
 # Configuration du serveur
 PORT=5000
 NODE_ENV=development
 
 # Configuration CORS
-CORS_ORIGIN=http://localhost:3000
+CORS_ORIGIN=http://10.11.101.233:3000
 ```
 
 ### 4. Base de données

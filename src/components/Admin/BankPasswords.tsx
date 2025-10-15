@@ -31,7 +31,7 @@ const BankPasswords: React.FC = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('dataflow_token');
-      const response = await axios.get(`http://localhost:5000/api/banques/passwords?page=${page}&limit=10`, {
+      const response = await axios.get(`${import.meta.env.VITE_BASE_URL}:5000/api/banques/passwords?page=${page}&limit=10`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

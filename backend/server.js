@@ -10,7 +10,11 @@ const app = express();
 
 // Configuration CORS complète
 const corsOptions = {
-  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'],
+  origin: [
+    `${process.env.VITE_BASE_URL}:5173`, 
+    `${process.env.VITE_BASE_URL}:3000`, 
+    'http://127.0.0.1:5173'
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: true,
@@ -121,7 +125,7 @@ app.get('/', (req, res) => {
   res.json({ message: 'DataFlow API is running' });
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT;
 app.listen(PORT, () => {
   // Server running
 });

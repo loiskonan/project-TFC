@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const DynamicValidationService = require('../services/DynamicValidationService');
 
 class User {
   static async findByEmail(email) {
@@ -123,101 +124,226 @@ class User {
     });
   }
 
-  // Récupérer tous les utilisateurs avec pagination et filtres
+  // Récupérer tous les utilisateurs avec pagination et filtres SÉCURISÉS
   static async findAllPaginatedWithFilters(limit, offset, filters) {
-    return new Promise((resolve, reject) => {
-      let whereConditions = [];
-      let queryParams = [];
+    return new Promise(async (resolve, reject) => {
+      try {
+        let whereConditions = [];
+        let queryParams = [];
 
-      // Construire les conditions de filtrage
-      if (filters.search && filters.search.trim()) {
-        whereConditions.push('(name LIKE ? OR email LIKE ?)');
-        const searchPattern = `%${filters.search.trim()}%`;
-        queryParams.push(searchPattern, searchPattern);
-      }
+        // Validation stricte des valeurs autorisées
+        const allowedRoles = ['admin', 'user', 'nsia_vie'];
+        const allowedStatuses = ['active', 'inactive'];
 
-      if (filters.banque && filters.banque !== '') {
-        whereConditions.push('banque = ?');
-        queryParams.push(filters.banque);
-      }
-
-      if (filters.role && filters.role !== '') {
-        whereConditions.push('role = ?');
-        queryParams.push(filters.role);
-      }
-
-      if (filters.status && filters.status !== '') {
-        if (filters.status === 'active') {
-          whereConditions.push('is_active = 1');
-        } else if (filters.status === 'inactive') {
-          whereConditions.push('is_active = 0');
+        // Filtre de recherche - SANITISÉ
+        if (filters.search && typeof filters.search === 'string') {
+          const sanitizedSearch = filters.search
+            .replace(/[%_\\'";]/g, '') // Supprimer les caractères spéciaux SQL
+            .trim()
+            .substring(0, 100); // Limiter la longueur
+          
+          if (sanitizedSearch.length > 0) {
+            whereConditions.push('(name LIKE ? OR email LIKE ?)');
+            const searchPattern = `%${sanitizedSearch}%`;
+            queryParams.push(searchPattern, searchPattern);
+          }
         }
-      }
 
-      const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
-
-      const query = `
-        SELECT id, email, role, banque, name, created_at as createdAt, last_login_at as lastLoginAt, is_active as isActive 
-        FROM users 
-        ${whereClause}
-        ORDER BY created_at DESC 
-        LIMIT ? OFFSET ?
-      `;
-
-      queryParams.push(limit, offset);
-
-      db.query(query, queryParams, (err, results) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(results);
+        // Filtre par banque - VALIDÉ DYNAMIQUEMENT
+        if (filters.banque && typeof filters.banque === 'string') {
+          const validBanque = await DynamicValidationService.validateBanque(filters.banque);
+          if (validBanque) {
+            whereConditions.push('banque = ?');
+            queryParams.push(validBanque);
+          }
         }
-      });
+
+        // Filtre par rôle - VALIDÉ
+        if (filters.role && typeof filters.role === 'string') {
+          const trimmedRole = filters.role.trim();
+          if (allowedRoles.includes(trimmedRole)) {
+            whereConditions.push('role = ?');
+            queryParams.push(trimmedRole);
+          }
+        }
+
+        // Filtre par statut - VALIDÉ
+        if (filters.status && typeof filters.status === 'string') {
+          const trimmedStatus = filters.status.trim();
+          if (allowedStatuses.includes(trimmedStatus)) {
+            if (trimmedStatus === 'active') {
+              whereConditions.push('is_active = 1');
+            } else if (trimmedStatus === 'inactive') {
+              whereConditions.push('is_active = 0');
+            }
+          }
+        }
+
+        // Construction sécurisée de la requête
+        const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+        
+        const query = `
+          SELECT id, email, role, banque, name, created_at as createdAt, last_login_at as lastLoginAt, is_active as isActive 
+          FROM users 
+          ${whereClause}
+          ORDER BY created_at DESC 
+          LIMIT ? OFFSET ?
+        `;
+
+        // Validation des paramètres de pagination
+        const validLimit = Math.min(Math.max(parseInt(limit) || 10, 1), 100); // Entre 1 et 100
+        const validOffset = Math.max(parseInt(offset) || 0, 0); // Minimum 0
+        
+        queryParams.push(validLimit, validOffset);
+
+        db.query(query, queryParams, (err, results) => {
+          if (err) {
+            console.error('Erreur SQL sécurisée:', err);
+            reject(new Error('Erreur lors de la récupération des utilisateurs'));
+          } else {
+            resolve(results);
+          }
+        });
+      } catch (error) {
+        console.error('Erreur dans findAllPaginatedWithFilters:', error);
+        reject(new Error('Erreur lors de la récupération des utilisateurs'));
+      }
     });
   }
 
-  // Compter tous les utilisateurs avec filtres
+  // Compter tous les utilisateurs avec filtres SÉCURISÉS
   static async countAllWithFilters(filters) {
-    return new Promise((resolve, reject) => {
-      let whereConditions = [];
-      let queryParams = [];
+    return new Promise(async (resolve, reject) => {
+      try {
+        let whereConditions = [];
+        let queryParams = [];
 
-      // Construire les conditions de filtrage (même logique que findAllPaginatedWithFilters)
-      if (filters.search && filters.search.trim()) {
-        whereConditions.push('(name LIKE ? OR email LIKE ?)');
-        const searchPattern = `%${filters.search.trim()}%`;
-        queryParams.push(searchPattern, searchPattern);
-      }
+        // Même validation que findAllPaginatedWithFilters
+        const allowedRoles = ['admin', 'user', 'nsia_vie'];
+        const allowedStatuses = ['active', 'inactive'];
 
-      if (filters.banque && filters.banque !== '') {
-        whereConditions.push('banque = ?');
-        queryParams.push(filters.banque);
-      }
-
-      if (filters.role && filters.role !== '') {
-        whereConditions.push('role = ?');
-        queryParams.push(filters.role);
-      }
-
-      if (filters.status && filters.status !== '') {
-        if (filters.status === 'active') {
-          whereConditions.push('is_active = 1');
-        } else if (filters.status === 'inactive') {
-          whereConditions.push('is_active = 0');
+        // Filtre de recherche - SANITISÉ
+        if (filters.search && typeof filters.search === 'string') {
+          const sanitizedSearch = filters.search
+            .replace(/[%_\\'";]/g, '') // Supprimer les caractères spéciaux SQL
+            .trim()
+            .substring(0, 100); // Limiter la longueur
+          
+          if (sanitizedSearch.length > 0) {
+            whereConditions.push('(name LIKE ? OR email LIKE ?)');
+            const searchPattern = `%${sanitizedSearch}%`;
+            queryParams.push(searchPattern, searchPattern);
+          }
         }
+
+        // Filtre par banque - VALIDÉ DYNAMIQUEMENT
+        if (filters.banque && typeof filters.banque === 'string') {
+          const validBanque = await DynamicValidationService.validateBanque(filters.banque);
+          if (validBanque) {
+            whereConditions.push('banque = ?');
+            queryParams.push(validBanque);
+          }
+        }
+
+        // Filtre par rôle - VALIDÉ
+        if (filters.role && typeof filters.role === 'string') {
+          const trimmedRole = filters.role.trim();
+          if (allowedRoles.includes(trimmedRole)) {
+            whereConditions.push('role = ?');
+            queryParams.push(trimmedRole);
+          }
+        }
+
+        // Filtre par statut - VALIDÉ
+        if (filters.status && typeof filters.status === 'string') {
+          const trimmedStatus = filters.status.trim();
+          if (allowedStatuses.includes(trimmedStatus)) {
+            if (trimmedStatus === 'active') {
+              whereConditions.push('is_active = 1');
+            } else if (trimmedStatus === 'inactive') {
+              whereConditions.push('is_active = 0');
+            }
+          }
+        }
+
+        const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+        const query = `SELECT COUNT(*) as total FROM users ${whereClause}`;
+
+        db.query(query, queryParams, (err, results) => {
+          if (err) {
+            console.error('Erreur SQL sécurisée:', err);
+            reject(new Error('Erreur lors du comptage des utilisateurs'));
+          } else {
+            resolve(results[0].total);
+          }
+        });
+      } catch (error) {
+        console.error('Erreur dans countAllWithFilters:', error);
+        reject(new Error('Erreur lors du comptage des utilisateurs'));
       }
+    });
+  }
 
-      const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
-
-      const query = `SELECT COUNT(*) as total FROM users ${whereClause}`;
-
-      db.query(query, queryParams, (err, results) => {
+  // Compter tous les utilisateurs
+  static async countAll() {
+    return new Promise((resolve, reject) => {
+      const query = 'SELECT COUNT(*) as total FROM users';
+      db.query(query, (err, results) => {
         if (err) {
           reject(err);
         } else {
           resolve(results[0].total);
         }
       });
+    });
+  }
+
+  // Compter les utilisateurs actifs
+  static async countActiveUsers() {
+    return new Promise((resolve, reject) => {
+      const query = 'SELECT COUNT(*) as total FROM users WHERE is_active = 1';
+      db.query(query, (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results[0].total);
+        }
+      });
+    });
+  }
+
+  // Compter les utilisateurs par banque
+  static async countByBanque(banque) {
+    return new Promise((resolve, reject) => {
+      const query = 'SELECT COUNT(*) as total FROM users WHERE banque = ? AND role = "user"';
+      db.query(query, [banque], (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results[0].total);
+        }
+      });
+    });
+  }
+}
+
+module.exports = User;
+
+        const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+        const query = `SELECT COUNT(*) as total FROM users ${whereClause}`;
+
+        db.query(query, queryParams, (err, results) => {
+          if (err) {
+            console.error('Erreur SQL sécurisée:', err);
+            reject(new Error('Erreur lors du comptage des utilisateurs'));
+          } else {
+            resolve(results[0].total);
+          }
+        });
+      } catch (error) {
+        console.error('Erreur dans countAllWithFilters:', error);
+        reject(new Error('Erreur lors du comptage des utilisateurs'));
+      }
     });
   }
 

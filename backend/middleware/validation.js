@@ -48,11 +48,27 @@ const validateCreateUser = [
     .withMessage('Rôle invalide'),
   body('banque')
     .optional()
-    .trim()
-    .isLength({ min: 2, max: 100 })
-    .withMessage('Le nom de banque doit contenir entre 2 et 100 caractères')
-    .matches(/^[a-zA-ZÀ-ÿ\s\-']+$/)
-    .withMessage('Le nom de banque ne peut contenir que des lettres, espaces, tirets et apostrophes'),
+    .custom((value, { req }) => {
+      // Si le rôle est 'user', la banque est requise
+      if (req.body.role === 'user') {
+        if (!value || value.trim().length === 0) {
+          throw new Error('La banque est requise pour les utilisateurs');
+        }
+        if (value.trim().length < 2 || value.trim().length > 100) {
+          throw new Error('Le nom de banque doit contenir entre 2 et 100 caractères');
+        }
+        if (!/^[a-zA-ZÀ-ÿ\s\-']+$/.test(value.trim())) {
+          throw new Error('Le nom de banque ne peut contenir que des lettres, espaces, tirets et apostrophes');
+        }
+      }
+      // Si le rôle est 'admin' ou 'nsia_vie', la banque doit être vide ou null
+      else if (req.body.role === 'admin' || req.body.role === 'nsia_vie') {
+        if (value && value.trim().length > 0) {
+          throw new Error('Les administrateurs et NSIA Vie ne peuvent pas être rattachés à une banque');
+        }
+      }
+      return true;
+    }),
   handleValidationErrors
 ];
 
@@ -211,6 +227,22 @@ const validateSearchFilters = [
     .withMessage('Statut invalide'),
   handleValidationErrors
 ];
+
+module.exports = {
+  handleValidationErrors,
+  validateLogin,
+  validateCreateUser,
+  validateCreateBanque,
+  validateFileUpload,
+  validateFileSend,
+  validateFileUploadFormData,
+  validateUpdateProfile,
+  validatePagination,
+  validateSearchFilters
+};
+
+  handleValidationErrors
+;
 
 module.exports = {
   handleValidationErrors,

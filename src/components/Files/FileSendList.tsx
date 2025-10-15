@@ -106,14 +106,14 @@ const FileSendList: React.FC<FileSendListProps> = ({ title, showDeposantInfo = f
       if (currentUser?.role === 'admin' || currentUser?.role === 'nsia_vie') {
         if (showDeposantInfo) {
           // Admin/NSIA Vie voient tous les fichiers envoyés
-          endpoint = 'http://localhost:5000/api/file-send/all-sent-files';
+          endpoint = `${import.meta.env.VITE_BASE_URL}:5000/api/file-send/all-sent-files`;
         } else {
           // Admin/NSIA Vie voient leurs propres fichiers envoyés
-          endpoint = 'http://localhost:5000/api/file-send/my-sent-files';
+          endpoint = `${import.meta.env.VITE_BASE_URL}:5000/api/file-send/my-sent-files`;
         }
       } else {
         // Utilisateurs normaux voient les fichiers reçus par leur banque
-        endpoint = 'http://localhost:5000/api/file-send/received-files';
+        endpoint = `${import.meta.env.VITE_BASE_URL}:5000/api/file-send/received-files`;
       }
 
       const response = await axios.get(`${endpoint}?${params}`, {
@@ -137,7 +137,7 @@ const FileSendList: React.FC<FileSendListProps> = ({ title, showDeposantInfo = f
   const fetchBanques = async () => {
     try {
       const token = localStorage.getItem('dataflow_token');
-      const response = await axios.get('http://localhost:5000/api/banques/active', {
+      const response = await axios.get(`${import.meta.env.VITE_BASE_URL}:5000/api/banques/active`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -187,7 +187,7 @@ const FileSendList: React.FC<FileSendListProps> = ({ title, showDeposantInfo = f
   const downloadFile = async (fileId: number, originalName: string) => {
     try {
       const token = localStorage.getItem('dataflow_token');
-      const response = await axios.get(`http://localhost:5000/api/file-send/download/${fileId}`, {
+      const response = await axios.get(`${import.meta.env.VITE_BASE_URL}:5000/api/file-send/download/${fileId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         },

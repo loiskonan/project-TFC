@@ -43,7 +43,7 @@ class EmailService {
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <div style="background: linear-gradient(135deg, #10105c, #d7990e); color: white; padding: 20px; text-align: center;">
-              <h1 style="margin: 0; font-size: 24px;">📁 Nouveaux fichiers reçus</h1>
+              <h1 style="margin: 0; font-size: 24px;"> Nouveaux fichiers reçus</h1>
             </div>
             
             <div style="padding: 20px; background: #f9f9f9;">
@@ -71,7 +71,7 @@ class EmailService {
               </div>
               
               <div style="text-align: center; margin-top: 30px;">
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}" 
+                <a href="${process.env.FRONTEND_URL}" 
                    style="background: #10105c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
                   🔗 Accéder à l'application
                 </a>

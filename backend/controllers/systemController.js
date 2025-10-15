@@ -43,7 +43,7 @@ class SystemController {
       }
 
       // Hasher le mot de passe avant de le stocker
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      const hashedPassword = await bcrypt.hash(newPassword, 12);
 
       // Mettre à jour le mot de passe par défaut (hashé)
       await SystemConfig.setConfig(

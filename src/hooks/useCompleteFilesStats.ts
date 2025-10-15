@@ -42,9 +42,9 @@ export const useCompleteFilesStats = () => {
       
       // Déterminer l'endpoint selon le rôle
       if (currentUser.role === 'admin' || currentUser.role === 'nsia_vie') {
-        endpoint = 'http://localhost:5000/api/user-uploads/stats-complete';
+        endpoint = `${import.meta.env.VITE_BASE_URL}:5000/api/user-uploads/stats-complete`;
       } else {
-        endpoint = 'http://localhost:5000/api/user-uploads/stats-user-complete';
+        endpoint = `${import.meta.env.VITE_BASE_URL}:5000/api/user-uploads/stats-user-complete`;
       }
 
       const response = await axios.get(endpoint, { headers });

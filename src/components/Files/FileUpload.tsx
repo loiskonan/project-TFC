@@ -66,7 +66,7 @@ const FileUpload: React.FC = () => {
     setLoadingBanques(true);
     try {
       const token = localStorage.getItem('dataflow_token');
-      const response = await axios.get('http://localhost:5000/api/banques/active', {
+      const response = await axios.get(`${import.meta.env.VITE_BASE_URL}:5000/api/banques/active`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -255,10 +255,10 @@ const FileUpload: React.FC = () => {
         formData.append('banqueDestinataire', banque.nom);
         formData.append('banqueCode', banque.nom); // Utiliser le nom comme code pour l'instant
         
-        endpoint = 'http://localhost:5000/api/file-send/upload-multiple';
+        endpoint = `${import.meta.env.VITE_BASE_URL}:5000/api/file-send/upload-multiple`;
       } else {
         // Pour les utilisateurs normaux, utiliser l'ancienne API
-        endpoint = 'http://localhost:5000/api/user-uploads/upload-multiple';
+        endpoint = `${import.meta.env.VITE_BASE_URL}:5000/api/user-uploads/upload-multiple`;
       }
 
       const response = await axios.post(endpoint, formData, {

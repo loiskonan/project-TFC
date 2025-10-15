@@ -46,7 +46,7 @@ const Settings: React.FC = () => {
   const loadDefaultPasswordStatus = async () => {
     try {
       const token = localStorage.getItem('dataflow_token');
-      const response = await axios.get('http://localhost:5000/api/system/default-password', {
+      const response = await axios.get(`${import.meta.env.VITE_BASE_URL}:5000/api/system/default-password`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -79,7 +79,7 @@ const Settings: React.FC = () => {
 
     try {
       const token = localStorage.getItem('dataflow_token');
-      await axios.put('http://localhost:5000/api/system/default-password', {
+      await axios.put(`${import.meta.env.VITE_BASE_URL}:5000/api/system/default-password`, {
         newPassword: defaultPassword
       }, {
         headers: {
@@ -126,7 +126,7 @@ const Settings: React.FC = () => {
 
     try {
       const token = localStorage.getItem('dataflow_token');
-      await axios.post('http://localhost:5000/api/auth/change-password', {
+      await axios.post(`${import.meta.env.VITE_BASE_URL}:5000/api/auth/change-password`, {
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword
       }, {

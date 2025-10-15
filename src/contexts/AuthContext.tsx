@@ -35,7 +35,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const token = localStorage.getItem('dataflow_token');
       if (token) {
         try {
-          const response = await fetch('http://localhost:5000/api/auth/verify', {
+          const response = await fetch(`${import.meta.env.VITE_BASE_URL}:5000/api/auth/verify`, {
             headers: {
               'Authorization': `Bearer ${token}`
             }
@@ -73,7 +73,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (!token) return;
 
       try {
-        const response = await fetch('http://localhost:5000/api/auth/verify', {
+        const response = await fetch(`${import.meta.env.VITE_BASE_URL}:5000/api/auth/verify`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -111,7 +111,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(true);
     
     try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
+      const response = await fetch(`${import.meta.env.VITE_BASE_URL}:5000/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

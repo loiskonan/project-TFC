@@ -70,10 +70,10 @@ export const useUserFiles = () => {
       // Choisir l'endpoint selon le rôle
       if (currentUser.role === 'user') {
         // Pour les utilisateurs : récupérer leurs propres fichiers
-        endpoint = `http://localhost:5000/api/user-uploads/my-deposits?${queryParams.toString()}`;
+        endpoint = `${import.meta.env.VITE_BASE_URL}:5000/api/user-uploads/my-deposits?${queryParams.toString()}`;
       } else if (currentUser.role === 'admin' || currentUser.role === 'nsia_vie') {
         // Pour admin/nsia_vie : récupérer tous les fichiers
-        endpoint = `http://localhost:5000/api/user-uploads/all-deposits?${queryParams.toString()}`;
+        endpoint = `${import.meta.env.VITE_BASE_URL}:5000/api/user-uploads/all-deposits?${queryParams.toString()}`;
       } else {
         setError('Rôle non reconnu');
         setIsLoading(false);
@@ -102,7 +102,7 @@ export const useUserFiles = () => {
   const downloadFile = async (fileId: number) => {
     try {
       const token = localStorage.getItem('dataflow_token');
-      const response = await axios.get(`http://localhost:5000/api/files/download/${fileId}`, {
+      const response = await axios.get(`${import.meta.env.VITE_BASE_URL}:5000/api/files/download/${fileId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         },
@@ -166,7 +166,7 @@ export const useUserFiles = () => {
 
     try {
       const token = localStorage.getItem('dataflow_token');
-      const response = await axios.delete(`http://localhost:5000/api/files/${fileId}`, {
+      const response = await axios.delete(`${import.meta.env.VITE_BASE_URL}:5000/api/files/${fileId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -198,7 +198,7 @@ export const useUserFiles = () => {
   const fetchBanques = async () => {
     try {
       const token = localStorage.getItem('dataflow_token');
-      const response = await axios.get('http://localhost:5000/api/user-uploads/banques', {
+      const response = await axios.get(`${import.meta.env.VITE_BASE_URL}:5000/api/user-uploads/banques`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

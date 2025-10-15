@@ -1,5 +1,6 @@
 const Banque = require('../models/Banque');
 const User = require('../models/User');
+const DynamicValidationService = require('../services/DynamicValidationService');
 const { generatePasswordsForAllBanks } = require('../utils/passwordGenerator');
 
 class BanqueController {
@@ -81,6 +82,9 @@ class BanqueController {
       });
 
       const newBanque = await Banque.findById(banqueId);
+
+      // Invalider le cache des banques
+      DynamicValidationService.invalidateCache();
 
       res.status(201).json({
         success: true,
@@ -276,6 +280,10 @@ class BanqueController {
       });
     }
   }
+}
+
+module.exports = BanqueController;
+
 }
 
 module.exports = BanqueController;

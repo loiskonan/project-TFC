@@ -98,7 +98,7 @@ const UserManagement: React.FC = () => {
       if (currentFilters.status) params.append('status', currentFilters.status);
 
 
-      const response = await axios.get(`http://localhost:5000/api/users?${params.toString()}`, {
+      const response = await axios.get(`${import.meta.env.VITE_BASE_URL}:5000/api/users?${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -126,7 +126,7 @@ const UserManagement: React.FC = () => {
         return;
       }
 
-      const response = await axios.get('http://localhost:5000/api/users/stats', {
+      const response = await axios.get(`${import.meta.env.VITE_BASE_URL}:5000/api/users/stats`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -149,7 +149,7 @@ const UserManagement: React.FC = () => {
   const loadBanques = async () => {
     try {
       const token = localStorage.getItem('dataflow_token');
-      const response = await axios.get('http://localhost:5000/api/banques/active', {
+      const response = await axios.get(`${import.meta.env.VITE_BASE_URL}:5000/api/banques/active`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -276,7 +276,7 @@ const UserManagement: React.FC = () => {
 
     try {
       const token = localStorage.getItem('dataflow_token');
-      await axios.post('http://localhost:5000/api/banques', banqueFormData, {
+      await axios.post(`${import.meta.env.VITE_BASE_URL}:5000/api/banques`, banqueFormData, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -315,8 +315,8 @@ const UserManagement: React.FC = () => {
       }
 
       const url = editingUser 
-        ? `http://localhost:5000/api/users/${editingUser.id}`
-        : 'http://localhost:5000/api/users';
+        ? `${import.meta.env.VITE_BASE_URL}:5000/api/users/${editingUser.id}`
+        : `${import.meta.env.VITE_BASE_URL}:5000/api/users`;
       
       const body = { ...formData };
 
@@ -349,7 +349,7 @@ const UserManagement: React.FC = () => {
   const toggleUserStatus = async (userId: string, isActive: boolean) => {
     try {
       const token = localStorage.getItem('dataflow_token');
-      await axios.patch(`http://localhost:5000/api/users/${userId}/status`, 
+      await axios.patch(`${import.meta.env.VITE_BASE_URL}:5000/api/users/${userId}/status`, 
         { isActive },
         {
           headers: {

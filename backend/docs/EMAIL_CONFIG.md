@@ -8,7 +8,7 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=votre-email@gmail.com
 SMTP_PASS=votre-mot-de-passe-app
-FRONTEND_URL=http://localhost:3000
+FRONTEND_URL=http://10.11.101.233:3000
 ```
 
 ## Configuration Gmail

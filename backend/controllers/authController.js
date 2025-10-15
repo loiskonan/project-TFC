@@ -45,7 +45,7 @@ class AuthController {
       }
 
       // Hashage du mot de passe
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const hashedPassword = await bcrypt.hash(password, 12);
 
       // Création de l'utilisateur
       const userData = {

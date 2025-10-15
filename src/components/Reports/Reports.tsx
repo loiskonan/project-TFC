@@ -32,7 +32,7 @@ const Reports: React.FC = () => {
   const handleDownload = async (fileId: number, fileName: string) => {
     try {
       const token = localStorage.getItem('dataflow_token');
-      const response = await fetch(`http://localhost:5000/api/files/download/${fileId}`, {
+      const response = await fetch(`${import.meta.env.VITE_BASE_URL}:5000/api/files/download/${fileId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`

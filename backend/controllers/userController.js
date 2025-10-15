@@ -129,24 +129,29 @@ class UserController {
 
       // Déterminer le mot de passe selon le rôle et la banque
       let password;
+      let hashedPassword;
       
       if (role === 'user' && banque) {
         try {
           // Générer le mot de passe spécifique à la banque
           password = getPasswordForBank(banque);
+          hashedPassword = await bcrypt.hash(password, 12);
         } catch (error) {
-          // En cas d'erreur, utiliser le mot de passe par défaut du système
-          const defaultPassword = await SystemConfig.getConfig('default_password');
-          password = defaultPassword || "Default@2025";
+          // En cas d'erreur, utiliser le mot de passe par défaut du système (DÉJÀ HASHÉ)
+          hashedPassword = await SystemConfig.getConfig('default_password');
+          if (!hashedPassword) {
+            // Fallback si pas de config : hasher le mot de passe par défaut
+            hashedPassword = await bcrypt.hash("Default@2025", 12);
+          }
         }
       } else {
-        // Pour admin et nsia_vie, toujours utiliser le mot de passe par défaut du système
-        const defaultPassword = await SystemConfig.getConfig('default_password');
-        password = defaultPassword || "Default@2025";
+        // Pour admin et nsia_vie, utiliser directement le hash du mot de passe par défaut
+        hashedPassword = await SystemConfig.getConfig('default_password');
+        if (!hashedPassword) {
+          // Fallback si pas de config : hasher le mot de passe par défaut
+          hashedPassword = await bcrypt.hash("Default@2025", 12);
+        }
       }
-      
-      // Hasher le mot de passe
-      const hashedPassword = await bcrypt.hash(password, 10);
 
       const userId = await User.create({
         name,
@@ -315,6 +320,11 @@ class UserController {
         message: 'Erreur interne du serveur'
       });
     }
+  }
+}
+
+module.exports = UserController;
+
   }
 }
 

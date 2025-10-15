@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { LogIn, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import loginBg from '../../assets/login.png';
 
 interface LoginFormProps {
   onSwitchToRegister?: () => void;
@@ -42,7 +41,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
     }
     
     try {
-      const response = await fetch('http://localhost:5000/api/auth/forgot-password', {
+      const response = await fetch(`${import.meta.env.VITE_BASE_URL}:5000/api/auth/forgot-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -71,7 +70,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
         <div 
           className="w-full h-full"
           style={{
-            backgroundImage: `url(${loginBg})`,
+            backgroundImage: `url(/assets/login.png)`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat'
