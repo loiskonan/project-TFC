@@ -43,7 +43,7 @@ PATCH /api/banques/:id/status - Activer/Désactiver une banque
 const loadBanques = async () => {
   try {
     const token = localStorage.getItem('dataflow_token');
-    const response = await axios.get('http://10.11.101.233:5000/api/banques/active', {
+    const response = await axios.get('http://localhost:5000/api/banques/active', {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -157,7 +157,7 @@ const loadBanques = async () => {
 ```bash
 # Test de récupération des banques actives
 curl -H "Authorization: Bearer YOUR_TOKEN" \
-     http://10.11.101.233:5000/api/banques/active
+     http://localhost:5000/api/banques/active
 ```
 
 ### **2. Test du formulaire**

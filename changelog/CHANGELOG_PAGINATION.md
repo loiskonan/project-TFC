@@ -162,9 +162,9 @@ const fetchUserFiles = async (page: number = 1) => {
     let endpoint = '';
     
     if (currentUser.role === 'user') {
-      endpoint = `http://10.11.101.233:5000/api/user-uploads/my-deposits?page=${page}`;
+      endpoint = `http://localhost:5000/api/user-uploads/my-deposits?page=${page}`;
     } else if (currentUser.role === 'admin' || currentUser.role === 'nsia_vie') {
-      endpoint = `http://10.11.101.233:5000/api/user-uploads/all-deposits?page=${page}`;
+      endpoint = `http://localhost:5000/api/user-uploads/all-deposits?page=${page}`;
     }
 
     const response = await axios.get(endpoint, {

@@ -46,7 +46,7 @@ const loadStats = async () => {
     }
 
     console.log('🔄 Chargement des statistiques...');
-    const response = await axios.get('http://10.11.101.233:5000/api/users/stats', {
+    const response = await axios.get('http://localhost:5000/api/users/stats', {
       headers: {
         'Authorization': `Bearer ${token}`
       }

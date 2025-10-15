@@ -215,9 +215,9 @@ const fetchUserFiles = async (page: number = 1) => {
     
     let endpoint = '';
     if (currentUser.role === 'user') {
-      endpoint = `http://10.11.101.233:5000/api/user-uploads/my-deposits?${queryParams.toString()}`;
+      endpoint = `http://localhost:5000/api/user-uploads/my-deposits?${queryParams.toString()}`;
     } else if (currentUser.role === 'admin' || currentUser.role === 'nsia_vie') {
-      endpoint = `http://10.11.101.233:5000/api/user-uploads/all-deposits?${queryParams.toString()}`;
+      endpoint = `http://localhost:5000/api/user-uploads/all-deposits?${queryParams.toString()}`;
     }
 
     const response = await axios.get(endpoint, {

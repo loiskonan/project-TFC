@@ -32,7 +32,7 @@ const fetchBanques = async () => {
   setLoadingBanques(true);
   try {
     const token = localStorage.getItem('dataflow_token');
-    const response = await axios.get('http://10.11.101.233:5000/api/banques/active', {
+    const response = await axios.get('http://localhost:5000/api/banques/active', {
       headers: {
         'Authorization': `Bearer ${token}`
       }

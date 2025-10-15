@@ -113,7 +113,7 @@ export const useUserFiles = () => {
   const fetchBanques = async () => {
     try {
       const token = localStorage.getItem('dataflow_token');
-      const response = await axios.get('http://10.11.101.233:5000/api/user-uploads/banques', {
+      const response = await axios.get('http://localhost:5000/api/user-uploads/banques', {
         headers: {
           'Authorization': `Bearer ${token}`
         }

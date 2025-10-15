@@ -11,8 +11,8 @@ const app = express();
 // Configuration CORS complète
 const corsOptions = {
   origin: [
-    `${process.env.VITE_BASE_URL}:5173`, 
-    `${process.env.VITE_BASE_URL}:3000`, 
+    `${process.env.VITE_BASE_URL || 'http://localhost'}:5173`, 
+    `${process.env.VITE_BASE_URL || 'http://localhost'}:3000`, 
     'http://127.0.0.1:5173'
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -125,7 +125,9 @@ app.get('/', (req, res) => {
   res.json({ message: 'DataFlow API is running' });
 });
 
-const PORT = process.env.PORT;
-app.listen(PORT, () => {
-  // Server running
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Serveur DataFlow démarré sur http://0.0.0.0:${PORT}`);
+  console.log(`📡 Accessible depuis: http://localhost:${PORT}`);
+  console.log(`🏠 Accessible depuis: http://localhost:${PORT}`);
 });

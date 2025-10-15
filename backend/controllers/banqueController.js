@@ -283,7 +283,3 @@ class BanqueController {
 }
 
 module.exports = BanqueController;
-
-}
-
-module.exports = BanqueController;

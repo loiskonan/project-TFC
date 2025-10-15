@@ -18,7 +18,7 @@
 ```javascript
 // AVANT
 const corsOptions = {
-  origin: 'http://10.11.101.233:5173',
+  origin: 'http://localhost:5173',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
@@ -26,7 +26,7 @@ const corsOptions = {
 
 // MAINTENANT
 const corsOptions = {
-  origin: ['http://10.11.101.233:5173', 'http://10.11.101.233:3000', 'http://127.0.0.1:5173'],
+  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: true,
